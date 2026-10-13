@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { demoTrades, pnl, stats } from '../lib/trades';
-const base = { ...demoTrades[0], entry:100, exit:110, quantity:2, fees:3 };
+import { pnl, stats, type Trade } from '../lib/trades';
+const base: Trade = { id:'test', symbol:'BTC', market:'Crypto', direction:'Long', traded_at:'2026-10-13', strategy:'Breakout', notes:'', entry:100, exit:110, quantity:2, fees:3 };
 describe('Trading calculations', () => {
   it('subtracts fees from long profit', () => expect(pnl({...base,direction:'Long'})).toBe(17));
   it('reverses price movement for shorts', () => expect(pnl({...base,direction:'Short'})).toBe(-23));

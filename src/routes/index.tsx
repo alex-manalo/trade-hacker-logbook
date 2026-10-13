@@ -11,11 +11,11 @@ import { demoTrades, money, pnl, stats, type Trade } from '@/lib/trades';
 const journalQuery = queryOptions({queryKey:['trades'],queryFn:async()=>{const {data:{user}}=await supabase.auth.getUser();if(!user)return {trades:demoTrades,user:null};const{data,error}=await supabase.from('trades').select('*').order('traded_at',{ascending:false});if(error)throw error;return{trades:(data??[]).map(t=>({...t,direction:t.direction as Trade['direction']})),user:{id:user.id,email:user.email}};}});
 export const Route=createFileRoute('/')({
  ssr:false,
- validateSearch:(s:Record<string,unknown>)=>({view:typeof s.view==='string'?s.view:'overview',q:typeof s.q==='string'?s.q:'',market:typeof s.market==='string'?s.market:'All markets',direction:typeof s.direction==='string'?s.direction:'All directions',period:typeof s.period==='string'?s.period:'All time',page:Number(s.page)||1}),
+ validateSearch:(s:Record<string,unknown>)=>({view:typeof s['view']==='string'?s['view']:'overview',q:typeof s['q']==='string'?s['q']:'',market:typeof s['market']==='string'?s['market']:'All markets',direction:typeof s['direction']==='string'?s['direction']:'All directions',period:typeof s['period']==='string'?s['period']:'All time',page:Number(s['page'])||1}),
  loader:({context})=>context.queryClient.ensureQueryData(journalQuery),
  head:()=>({meta:[{title:'ZERO// Trading Journal'},{name:'description',content:'A private trading journal. Track executions, analyze your performance, and refine your edge.'},{property:'og:title',content:'ZERO// Trading Journal'},{property:'og:description',content:'Track your trades. Decode your edge.'},{property:'og:type',content:'website'},{name:'twitter:card',content:'summary_large_image'}]}),
  component:Journal,
- errorComponent:({error})=><div className="empty">Unable to connect: {error.message}<Button className="ml-4" onClick={()=>window.location.reload()}>Reconnect</Button></div>,
+ errorComponent:({error})=><div className="empty">Unable to connect: {error instanceof Error ? error.message : 'Please reconnect.'}<Button className="ml-4" onClick={()=>window.location.reload()}>Reconnect</Button></div>,
  notFoundComponent:()=> <div className="empty">Journal not found.</div>,
 });
 function EquityChart({trades}:{trades:Trade[]}) {
