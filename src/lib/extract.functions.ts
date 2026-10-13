@@ -23,7 +23,7 @@ export const extractTrade = createServerFn({ method: 'POST' })
   .handler(async ({ data }): Promise<Extracted> => {
     const res = await fetch('https://ai.gateway.lovable.dev/v1/responses', {
       method: 'POST',
-      headers: { 'Lovable-API-Key': process.env.LOVABLE_API_KEY ?? '', 'Content-Type': 'application/json', 'X-Lovable-AIG-SDK': 'fetch' },
+      headers: { 'Lovable-API-Key': process.env['LOVABLE_API_KEY'] ?? '', 'Content-Type': 'application/json', 'X-Lovable-AIG-SDK': 'fetch' },
       body: JSON.stringify({
         model: 'openai/gpt-6-astra', stream: true, store: false, reasoning: { effort: 'low' },
         instructions: 'You read trading screenshots (broker fills, charts, positions) and extract one trade. Use null for anything not visible or confidently inferable. Dates as YYYY-MM-DD. Symbols like BTC/USDT, EUR/USD, NVDA. Notes: one short sentence describing the setup.',
