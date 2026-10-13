@@ -25,6 +25,7 @@ export type Database = {
           market: string
           notes: string
           quantity: number
+          screenshot_path: string | null
           strategy: string
           symbol: string
           traded_at: string
@@ -40,6 +41,7 @@ export type Database = {
           market?: string
           notes?: string
           quantity: number
+          screenshot_path?: string | null
           strategy?: string
           symbol: string
           traded_at?: string
@@ -55,6 +57,7 @@ export type Database = {
           market?: string
           notes?: string
           quantity?: number
+          screenshot_path?: string | null
           strategy?: string
           symbol?: string
           traded_at?: string

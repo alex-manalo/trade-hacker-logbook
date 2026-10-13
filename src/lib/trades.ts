@@ -1,4 +1,4 @@
-export type Trade = { id: string; symbol: string; market: string; direction: 'Long' | 'Short'; entry: number; exit: number; quantity: number; fees: number; traded_at: string; strategy: string; notes: string };
+export type Trade = { id: string; symbol: string; market: string; direction: 'Long' | 'Short'; entry: number; exit: number; quantity: number; fees: number; traded_at: string; strategy: string; notes: string; screenshot_path?: string | null };
 export function pnl(t: Trade) { return (t.exit - t.entry) * t.quantity * (t.direction === 'Long' ? 1 : -1) - t.fees; }
 export function stats(trades: Trade[]) {
   const profits = trades.map(pnl);
