@@ -13,7 +13,7 @@ const trade = {
     strategy: n('string', { enum: ['Breakout', 'Pullback', 'Reversal', 'Trend following', null] }), notes: n('string'),
   },
 };
-const schema = { type: 'object', additionalProperties: false, required: ['trades'], properties: { trades: { type: 'array', items: trade } } };
+export const schema = { type: 'object', additionalProperties: false, required: ['trades'], properties: { trades: { type: 'array', items: trade } } };
 
 export const extractTrade = createServerFn({ method: 'POST' })
   .middleware([requireSupabaseAuth])
