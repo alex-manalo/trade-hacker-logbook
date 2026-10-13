@@ -1,5 +1,6 @@
 # Trading journal
 - [x] Create hacker-themed journal and performance overview.
 - [x] Add private trade saving, sign-in, filtering and export.
-- [x] Verify calculations, filters, export controls, calendar and screen layouts.
-- [ ] Verify private trade saving — waiting for a signed-in account; no auth users exist yet.
+- [x] Calendar day opens that day's trades.
+- [x] Screenshot per trade + AI auto-fill from screenshot.
+- [ ] Verify private saving, screenshot upload and auto-fill signed in — no accounts exist yet.
