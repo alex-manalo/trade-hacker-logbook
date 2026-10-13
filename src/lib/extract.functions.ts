@@ -1,7 +1,18 @@
 import { createServerFn } from '@tanstack/react-start';
 import { requireSupabaseAuth } from '@/integrations/supabase/auth-middleware';
 
-export type Extracted = Partial<{ symbol: string; market: string; direction: string; entry: number; exit: number; quantity: number; fees: number; traded_at: string; strategy: string; notes: string }>;
+export type Extracted = Partial<{ symbol: string | null; market: string | null; direction: string | null; entry: number | null; exit: number | null; quantity: number | null; fees: number | null; traded_at: string | null; strategy: string | null; notes: string | null }>;
+
+const n = (t: string, extra: Record<string, unknown> = {}) => ({ type: [t, 'null'], ...extra });
+const schema = {
+  type: 'object', additionalProperties: false,
+  required: ['symbol', 'market', 'direction', 'entry', 'exit', 'quantity', 'fees', 'traded_at', 'strategy', 'notes'],
+  properties: {
+    symbol: n('string'), market: n('string', { enum: ['Crypto', 'Forex', 'Stocks', 'Futures', null] }), direction: n('string', { enum: ['Long', 'Short', null] }),
+    entry: n('number'), exit: n('number'), quantity: n('number'), fees: n('number'), traded_at: n('string'),
+    strategy: n('string', { enum: ['Breakout', 'Pullback', 'Reversal', 'Trend following', null] }), notes: n('string'),
+  },
+};
 
 export const extractTrade = createServerFn({ method: 'POST' })
   .middleware([requireSupabaseAuth])
@@ -10,27 +21,28 @@ export const extractTrade = createServerFn({ method: 'POST' })
     return d;
   })
   .handler(async ({ data }): Promise<Extracted> => {
-    const res = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+    const res = await fetch('https://ai.gateway.lovable.dev/v1/responses', {
       method: 'POST',
-      headers: { Authorization: `Bearer ${process.env.LOVABLE_API_KEY}`, 'Content-Type': 'application/json' },
+      headers: { 'Lovable-API-Key': process.env.LOVABLE_API_KEY ?? '', 'Content-Type': 'application/json', 'X-Lovable-AIG-SDK': 'fetch' },
       body: JSON.stringify({
-        model: 'google/gemini-2.5-flash',
-        messages: [
-          { role: 'system', content: 'You read trading screenshots (broker fills, charts, positions) and extract one trade. Only fill fields you can see or confidently infer. Dates as YYYY-MM-DD. Symbols like BTC/USDT, EUR/USD, NVDA.' },
-          { role: 'user', content: [{ type: 'text', text: 'Extract the trade details from this screenshot.' }, { type: 'image_url', image_url: { url: data.image } }] },
-        ],
-        tools: [{ type: 'function', function: { name: 'fill_trade', parameters: { type: 'object', properties: {
-          symbol: { type: 'string' }, market: { type: 'string', enum: ['Crypto', 'Forex', 'Stocks', 'Futures'] }, direction: { type: 'string', enum: ['Long', 'Short'] },
-          entry: { type: 'number' }, exit: { type: 'number' }, quantity: { type: 'number' }, fees: { type: 'number' }, traded_at: { type: 'string' },
-          strategy: { type: 'string', enum: ['Breakout', 'Pullback', 'Reversal', 'Trend following'] }, notes: { type: 'string', description: 'Short summary of what the screenshot shows' },
-        } } } }],
-        tool_choice: { type: 'function', function: { name: 'fill_trade' } },
+        model: 'openai/gpt-6-astra', stream: true, store: false, reasoning: { effort: 'low' },
+        instructions: 'You read trading screenshots (broker fills, charts, positions) and extract one trade. Use null for anything not visible or confidently inferable. Dates as YYYY-MM-DD. Symbols like BTC/USDT, EUR/USD, NVDA. Notes: one short sentence describing the setup.',
+        input: [{ role: 'user', content: [{ type: 'input_text', text: 'Extract the trade details from this screenshot.' }, { type: 'input_image', image_url: data.image }] }],
+        text: { format: { type: 'json_schema', name: 'trade', strict: true, schema } },
       }),
     });
     if (res.status === 429) throw new Error('Too many requests, try again shortly.');
     if (res.status === 402) throw new Error('AI credits exhausted. Add credits in workspace settings.');
-    if (!res.ok) throw new Error('Could not read the screenshot.');
-    const json = await res.json();
-    const args = json.choices?.[0]?.message?.tool_calls?.[0]?.function?.arguments;
-    return args ? JSON.parse(args) : {};
+    if (!res.ok || !res.body) throw new Error('Could not read the screenshot.');
+    const reader = res.body.getReader(); const dec = new TextDecoder(); let buf = ''; let out = '';
+    for (;;) {
+      const { done, value } = await reader.read(); if (done) break;
+      buf += dec.decode(value, { stream: true });
+      const lines = buf.split('\n'); buf = lines.pop() ?? '';
+      for (const l of lines) {
+        if (!l.startsWith('data:')) continue;
+        try { const ev = JSON.parse(l.slice(5)); if (ev.type === 'response.output_text.delta') out += ev.delta; } catch { /* ignore */ }
+      }
+    }
+    try { return JSON.parse(out); } catch { throw new Error('Could not read the screenshot.'); }
   });
