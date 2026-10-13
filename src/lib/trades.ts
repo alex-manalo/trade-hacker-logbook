@@ -22,4 +22,10 @@ export const demoTrades: Trade[] = [
   ['GBP/USD','Forex','Short',1.31,1.314,50000,4,'2026-10-06','Reversal'],
   ['NVDA','Stocks','Long',120,126,100,4,'2026-10-05','Breakout'],
   ['BTC/USDT','Crypto','Long',61000,62400,.9,8,'2026-10-03','Pullback'],
-].map((v,i) => ({ id:`demo-${i}`, symbol:String(v[0]), market:String(v[1]), direction:v[2] as Trade['direction'], entry:Number(v[3]),exit:Number(v[4]),quantity:Number(v[5]), fees:Number(v[6]),traded_at:String(v[7]),strategy:String(v[8]),notes:'Patient entry at the key level. Followed the trading plan.' }));
+].map((v,i) => ({ id:`demo-${i}`, symbol:String(v[0]), market:String(v[1]), direction:v[2] as Trade['direction'], entry:Number(v[3]),exit:Number(v[4]),quantity:Number(v[5]), fees:Number(v[6]),traded_at:String(v[7]),strategy:String(v[8]),notes:'Patient entry at the key level. Followed the trading plan.' }));type TradeKeyInput = { symbol: string; direction: string; entry: number; exit: number; quantity: number; traded_at: string };
+export const tradeKey = (t: TradeKeyInput) => [t.symbol.trim().toUpperCase(), t.direction, Number(t.entry), Number(t.exit), Number(t.quantity), t.traded_at].join('|');
+export function splitDuplicates<T extends TradeKeyInput>(incoming: T[], existing: TradeKeyInput[]) {
+  const seen = new Set(existing.map(tradeKey)); const fresh: T[] = []; let duplicates = 0;
+  for (const t of incoming) { const k = tradeKey(t); if (seen.has(k)) duplicates++; else { seen.add(k); fresh.push(t); } }
+  return { fresh, duplicates };
+}
