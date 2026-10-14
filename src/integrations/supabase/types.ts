@@ -14,6 +14,39 @@ export type Database = {
   }
   public: {
     Tables: {
+      backtests: {
+        Row: {
+          created_at: string
+          id: string
+          outcome: string
+          screenshot_path: string | null
+          stop: number
+          strategy: string
+          target: number
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          outcome: string
+          screenshot_path?: string | null
+          stop: number
+          strategy?: string
+          target: number
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          outcome?: string
+          screenshot_path?: string | null
+          stop?: number
+          strategy?: string
+          target?: number
+          user_id?: string
+        }
+        Relationships: []
+      }
       trades: {
         Row: {
           created_at: string
