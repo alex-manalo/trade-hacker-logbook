@@ -15,6 +15,13 @@
       "when": 1791861386350,
       "tag": "0001_trade_screenshots",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1791944766137,
+      "tag": "0002_migration",
+      "breakpoints": true
     }
   ]
 }
