@@ -37,7 +37,7 @@ export function Backtest({ trades }: { trades: Trade[] }) {
   return (
     <section className="panel">
       <div className="panel-head"><div className="panel-title"><FlaskConical />Backtest your journal</div><span className="panel-meta">WHAT-IF SIMULATION</span></div>
-      <p className="text-xs text-muted-foreground mb-4">Replay your logged trades with a different size, fees or max loss per trade to see how the result would have changed.</p>
+      <div className="p-5"><p className="text-xs text-muted-foreground mb-4">Replay your logged trades with a different size, fees or max loss per trade to see how the result would have changed.</p>
       <div className="form-grid mb-4">
         <label className="field">Strategy<select value={strategy} onChange={e => setStrategy(e.target.value)}><option>All</option>{strategies.map(s => <option key={s}>{s}</option>)}</select></label>
         <label className="field">Direction<select value={direction} onChange={e => setDirection(e.target.value)}><option>All</option><option>Long</option><option>Short</option></select></label>
@@ -55,6 +55,7 @@ export function Backtest({ trades }: { trades: Trade[] }) {
       {r.sim.length ? (
         <svg viewBox="0 0 600 160" className="equity-chart" role="img" aria-label="Simulated equity curve"><polyline points={pts} className="equity-line" /></svg>
       ) : <div className="empty">No trades match these filters.</div>}
+      </div>
     </section>
   );
 }

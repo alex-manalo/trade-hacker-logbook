@@ -32,7 +32,7 @@ export function StrategyEditor({ trades, userId }: { trades: Trade[]; userId?: s
   return (
     <section className="panel">
       <div className="panel-head"><div className="panel-title"><Crosshair />Edit strategies</div><span className="panel-meta">{list.length} PLAYBOOKS</span></div>
-      <div className="space-y-2">
+      <div className="space-y-2 p-5">
         {list.map(s => {
           const used = trades.filter(t => t.strategy === s).length;
           return (
