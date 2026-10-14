@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/input';
 import { setStrategies, useStrategies } from '@/lib/strategies';
 import type { Trade } from '@/lib/trades';
 
-export function StrategyEditor({ trades, userId }: { trades: Trade[]; userId?: string }) {
+export function StrategyEditor({ trades, userId }: { trades: Trade[]; userId?: string | undefined }) {
   const list = useStrategies();
   const qc = useQueryClient();
   const [draft, setDraft] = useState('');
@@ -55,7 +55,7 @@ export function StrategyEditor({ trades, userId }: { trades: Trade[]; userId?: s
             </div>
           );
         })}
-        <form className="flex gap-2 pt-2" onSubmit={e => { e.preventDefault(); if (!draft.trim()) return; if (list.includes(draft.trim())) return toast.error('Already in your list.'); setStrategies([...list, draft]); setDraft(''); }}>
+        <form className="flex gap-2 pt-2" onSubmit={e => { e.preventDefault(); if (!draft.trim()) return; if (list.includes(draft.trim())) { toast.error("Already in your list."); return; } setStrategies([...list, draft]); setDraft(""); }}>
           <Input placeholder="New strategy name" value={draft} onChange={e => setDraft(e.target.value)} />
           <Button type="submit"><Plus />Add</Button>
         </form>
