@@ -9,7 +9,35 @@ import { Input } from '@/components/ui/input';
 import { useStrategies } from '@/lib/strategies';
 import { extractBacktest } from '@/lib/backtest.functions';
 
-type Row = { id: string; strategy: string; target: number; stop: number; outcome: string; screenshot_path: string | null; created_at: string };
+export type BacktestRow = { id: string; strategy: string; target: number; stop: number; outcome: string; screenshot_path: string | null; created_at: string };
+
+export function useBacktests(userId: string | undefined) {
+  return useQuery({
+    queryKey: ['backtests', userId], enabled: Boolean(userId),
+    queryFn: async () => { const { data, error } = await supabase.from('backtests').select('*').order('created_at', { ascending: false }); if (error) throw error; return data as BacktestRow[]; },
+  });
+}
+
+export function inPeriod(rows: BacktestRow[], period: string) {
+  if (period === 'All time') return rows;
+  const from = Date.now() - (period === 'Last 7 days' ? 7 : 30) * 86400000;
+  return rows.filter(r => new Date(r.created_at).getTime() >= from);
+}
+
+// Results are measured in R (1R = the stop loss): a win earns target/stop, a loss costs 1R.
+export function backtestStats(rows: BacktestRow[]) {
+  const rOf = (r: BacktestRow) => (r.outcome === 'Win' ? (Number(r.target) / Number(r.stop) || 0) : -1);
+  const wins = rows.filter(r => r.outcome === 'Win');
+  const losses = rows.length - wins.length;
+  const grossWin = wins.reduce((a, r) => a + rOf(r), 0);
+  const total = rows.reduce((a, r) => a + rOf(r), 0);
+  return {
+    count: rows.length, wins: wins.length, losses, total,
+    winRate: rows.length ? (wins.length / rows.length) * 100 : 0,
+    profitFactor: losses ? grossWin / losses : grossWin > 0 ? Infinity : 0,
+    expectancy: rows.length ? total / rows.length : 0,
+  };
+}
 
 function Shot({ path }: { path: string }) {
   const [url, setUrl] = useState<string>();
@@ -17,7 +45,7 @@ function Shot({ path }: { path: string }) {
   return url ? <a href={url} target="_blank" rel="noreferrer"><img src={url} alt="Backtest screenshot" className="h-12 w-20 rounded border border-border object-cover" /></a> : <div className="h-12 w-20" />;
 }
 
-export function Backtest({ userId, onSignIn }: { userId: string | undefined; onSignIn: () => void }) {
+export function Backtest({ userId, onSignIn, period = 'All time' }: { userId: string | undefined; onSignIn: () => void; period?: string }) {
   const strategies = useStrategies();
   const qc = useQueryClient();
   const read = useServerFn(extractBacktest);
@@ -27,10 +55,7 @@ export function Backtest({ userId, onSignIn }: { userId: string | undefined; onS
   const [form, setForm] = useState({ target: '', stop: '', strategy: '', outcome: 'Win' });
   const [filter, setFilter] = useState('All');
 
-  const list = useQuery({
-    queryKey: ['backtests', userId], enabled: Boolean(userId),
-    queryFn: async () => { const { data, error } = await supabase.from('backtests').select('*').order('created_at', { ascending: false }); if (error) throw error; return data as Row[]; },
-  });
+  const list = useBacktests(userId);
 
   async function pick(f?: File) {
     if (!f) return;
@@ -67,9 +92,10 @@ export function Backtest({ userId, onSignIn }: { userId: string | undefined; onS
     onError: e => toast.error(e.message),
   });
 
-  const rows = (list.data ?? []).filter(r => filter === 'All' || r.strategy === filter);
+  const all = inPeriod(list.data ?? [], period);
+  const rows = all.filter(r => filter === 'All' || r.strategy === filter);
   const wins = rows.filter(r => r.outcome === 'Win').length;
-  const byStrategy = [...new Set((list.data ?? []).map(r => r.strategy))].map(s => { const rs = (list.data ?? []).filter(r => r.strategy === s); const w = rs.filter(r => r.outcome === 'Win').length; return { s, n: rs.length, rate: (w / rs.length) * 100 }; });
+  const byStrategy = [...new Set(all.map(r => r.strategy))].map(s => { const rs = all.filter(r => r.strategy === s); const w = rs.filter(r => r.outcome === 'Win').length; return { s, n: rs.length, rate: (w / rs.length) * 100 }; });
 
   return (
     <>
