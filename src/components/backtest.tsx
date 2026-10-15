@@ -1,61 +1,110 @@
-import { useMemo, useState } from 'react';
-import { FlaskConical } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useServerFn } from '@tanstack/react-start';
+import { FlaskConical, ImagePlus, Trash2 } from 'lucide-react';
+import { toast } from 'sonner';
+import { supabase } from '@/integrations/supabase/client';
+import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { money, pnl, stats, type Trade } from '@/lib/trades';
 import { useStrategies } from '@/lib/strategies';
+import { extractBacktest } from '@/lib/backtest.functions';
 
-/** Replays your logged trades under different rules to see how the result would change. */
-export function Backtest({ trades }: { trades: Trade[] }) {
+type Row = { id: string; strategy: string; target: number; stop: number; outcome: string; screenshot_path: string | null; created_at: string };
+
+function Shot({ path }: { path: string }) {
+  const [url, setUrl] = useState<string>();
+  useEffect(() => { supabase.storage.from('trade-screenshots').createSignedUrl(path, 3600).then(r => setUrl(r.data?.signedUrl)); }, [path]);
+  return url ? <a href={url} target="_blank" rel="noreferrer"><img src={url} alt="Backtest screenshot" className="h-12 w-20 rounded border border-border object-cover" /></a> : <div className="h-12 w-20" />;
+}
+
+export function Backtest({ userId, onSignIn }: { userId: string | undefined; onSignIn: () => void }) {
   const strategies = useStrategies();
-  const [strategy, setStrategy] = useState('All');
-  const [direction, setDirection] = useState('All');
-  const [capital, setCapital] = useState(10000);
-  const [size, setSize] = useState(1);
-  const [feeMult, setFeeMult] = useState(1);
-  const [stop, setStop] = useState(0);
+  const qc = useQueryClient();
+  const read = useServerFn(extractBacktest);
+  const [file, setFile] = useState<File | null>(null);
+  const [preview, setPreview] = useState<string>();
+  const [reading, setReading] = useState(false);
+  const [form, setForm] = useState({ target: '', stop: '', strategy: '', outcome: 'Win' });
+  const [filter, setFilter] = useState('All');
 
-  const r = useMemo(() => {
-    const picked = [...trades]
-      .filter(t => (strategy === 'All' || t.strategy === strategy) && (direction === 'All' || t.direction === direction))
-      .sort((a, b) => a.traded_at.localeCompare(b.traded_at));
-    const sim = picked.map(t => {
-      const gross = pnl({ ...t, fees: 0 }) * size;
-      const capped = stop > 0 ? Math.max(gross, -stop) : gross;
-      return { ...t, sim: capped - t.fees * size * feeMult };
-    });
-    let eq = capital, peak = capital, dd = 0;
-    const curve = [capital, ...sim.map(t => { eq += t.sim; peak = Math.max(peak, eq); dd = Math.max(dd, peak - eq); return eq; })];
-    const wins = sim.filter(t => t.sim > 0).length;
-    return { sim, curve, end: eq, dd, wins, actual: stats(picked).total };
-  }, [trades, strategy, direction, capital, size, feeMult, stop]);
+  const list = useQuery({
+    queryKey: ['backtests', userId], enabled: Boolean(userId),
+    queryFn: async () => { const { data, error } = await supabase.from('backtests').select('*').order('created_at', { ascending: false }); if (error) throw error; return data as Row[]; },
+  });
 
-  const lo = Math.min(...r.curve), hi = Math.max(...r.curve), span = hi - lo || 1;
-  const pts = r.curve.map((v, i) => `${(i / Math.max(1, r.curve.length - 1)) * 600},${150 - ((v - lo) / span) * 130}`).join(' ');
-  const ret = ((r.end - capital) / capital) * 100;
-  const num = (v: string, d: number) => (Number.isFinite(Number(v)) ? Number(v) : d);
+  async function pick(f?: File) {
+    if (!f) return;
+    if (!userId) return onSignIn();
+    setFile(f); setPreview(URL.createObjectURL(f)); setReading(true);
+    try {
+      const image = await new Promise<string>((res, rej) => { const r = new FileReader(); r.onload = () => res(String(r.result)); r.onerror = rej; r.readAsDataURL(f); });
+      const x = await read({ data: { image } });
+      setForm(p => ({ ...p, target: x.target != null ? String(x.target) : p.target, stop: x.stop != null ? String(x.stop) : p.stop, outcome: x.outcome ?? p.outcome }));
+      toast.success('Screenshot read. Check the fields, pick a strategy, then save.');
+    } catch (e) { toast.error(e instanceof Error ? e.message : 'Could not read the screenshot.'); }
+    finally { setReading(false); }
+  }
+
+  const save = useMutation({
+    mutationFn: async () => {
+      if (!userId) throw new Error('Sign in to save backtests.');
+      let screenshot_path: string | null = null;
+      if (file) {
+        const path = `${userId}/backtest-${crypto.randomUUID()}.${file.name.split('.').pop() || 'png'}`;
+        const up = await supabase.storage.from('trade-screenshots').upload(path, file, { contentType: file.type });
+        if (up.error) throw up.error; screenshot_path = path;
+      }
+      const { error } = await supabase.from('backtests').insert({ user_id: userId, strategy: form.strategy || strategies[0] || 'Breakout', target: Number(form.target), stop: Number(form.stop), outcome: form.outcome, screenshot_path });
+      if (error) throw error;
+    },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['backtests'] }); toast.success('Backtest saved.'); setFile(null); setPreview(undefined); setForm(p => ({ ...p, target: '', stop: '' })); },
+    onError: e => toast.error(e.message),
+  });
+
+  const remove = useMutation({
+    mutationFn: async (id: string) => { const { error } = await supabase.from('backtests').delete().eq('id', id); if (error) throw error; },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['backtests'] }),
+    onError: e => toast.error(e.message),
+  });
+
+  const rows = (list.data ?? []).filter(r => filter === 'All' || r.strategy === filter);
+  const wins = rows.filter(r => r.outcome === 'Win').length;
+  const byStrategy = [...new Set((list.data ?? []).map(r => r.strategy))].map(s => { const rs = (list.data ?? []).filter(r => r.strategy === s); const w = rs.filter(r => r.outcome === 'Win').length; return { s, n: rs.length, rate: (w / rs.length) * 100 }; });
 
   return (
-    <section className="panel">
-      <div className="panel-head"><div className="panel-title"><FlaskConical />Backtest your journal</div><span className="panel-meta">WHAT-IF SIMULATION</span></div>
-      <div className="p-5"><p className="text-xs text-muted-foreground mb-4">Replay your logged trades with a different size, fees or max loss per trade to see how the result would have changed.</p>
-      <div className="form-grid mb-4">
-        <label className="field">Strategy<select value={strategy} onChange={e => setStrategy(e.target.value)}><option>All</option>{strategies.map(s => <option key={s}>{s}</option>)}</select></label>
-        <label className="field">Direction<select value={direction} onChange={e => setDirection(e.target.value)}><option>All</option><option>Long</option><option>Short</option></select></label>
-        <label className="field">Starting capital (USD)<Input type="number" min={1} value={capital} onChange={e => setCapital(num(e.target.value, 10000))} /></label>
-        <label className="field">Position size multiplier<Input type="number" step="0.1" min={0} value={size} onChange={e => setSize(num(e.target.value, 1))} /></label>
-        <label className="field">Fee multiplier<Input type="number" step="0.1" min={0} value={feeMult} onChange={e => setFeeMult(num(e.target.value, 1))} /></label>
-        <label className="field">Max loss per trade (USD, 0 = off)<Input type="number" min={0} value={stop} onChange={e => setStop(num(e.target.value, 0))} /></label>
-      </div>
-      <div className="metrics mb-4">
-        <div className="metric"><div className="metric-name">ENDING EQUITY</div><div className={`metric-value ${r.end >= capital ? 'positive' : 'negative'}`}>{money(r.end)}</div><div className="metric-foot">{ret >= 0 ? '+' : ''}{ret.toFixed(2)}% return</div></div>
-        <div className="metric"><div className="metric-name">SIMULATED P&L</div><div className="metric-value">{money(r.end - capital)}</div><div className="metric-foot">Actual: {money(r.actual)}</div></div>
-        <div className="metric"><div className="metric-name">WIN RATE</div><div className="metric-value">{r.sim.length ? ((r.wins / r.sim.length) * 100).toFixed(1) : '0.0'}%</div><div className="metric-foot">{r.sim.length} trades replayed</div></div>
-        <div className="metric"><div className="metric-name">MAX DRAWDOWN</div><div className="metric-value negative">{money(-r.dd)}</div><div className="metric-foot">Peak to trough</div></div>
-      </div>
-      {r.sim.length ? (
-        <svg viewBox="0 0 600 160" className="equity-chart" role="img" aria-label="Simulated equity curve"><polyline points={pts} className="equity-line" /></svg>
-      ) : <div className="empty">No trades match these filters.</div>}
-      </div>
-    </section>
+    <>
+      <section className="panel">
+        <div className="panel-head"><div className="panel-title"><FlaskConical />Log a backtest</div><span className="panel-meta">UPLOAD & AUTO-FILL</span></div>
+        <div className="p-5 space-y-4">
+          {preview && <img src={preview} alt="Backtest screenshot preview" className="max-h-64 w-full rounded border border-border object-contain bg-background" />}
+          <Button type="button" variant="outline" disabled={reading} asChild><label className="cursor-pointer"><ImagePlus />{reading ? 'Reading screenshot...' : preview ? 'Replace screenshot' : 'Upload backtest screenshot'}<input type="file" accept="image/*" className="hidden" disabled={reading} onChange={e => { pick(e.target.files?.[0]); e.target.value = ''; }} /></label></Button>
+          <form className="form-grid" onSubmit={e => { e.preventDefault(); if (!userId) return onSignIn(); save.mutate(); }}>
+            <label className="field">Target (%)<Input type="number" step="any" min={0} required value={form.target} onChange={e => setForm({ ...form, target: e.target.value })} /></label>
+            <label className="field">Stop loss (%)<Input type="number" step="any" min={0} required value={form.stop} onChange={e => setForm({ ...form, stop: e.target.value })} /></label>
+            <label className="field">Strategy<select value={form.strategy || strategies[0]} onChange={e => setForm({ ...form, strategy: e.target.value })}>{strategies.map(s => <option key={s}>{s}</option>)}</select></label>
+            <label className="field">Result<select value={form.outcome} onChange={e => setForm({ ...form, outcome: e.target.value })}><option>Win</option><option>Loss</option></select></label>
+            <div className="field full flex-row justify-end"><Button disabled={save.isPending || reading}>{save.isPending ? 'Saving...' : 'Save backtest'}</Button></div>
+          </form>
+        </div>
+      </section>
+      <section className="panel">
+        <div className="panel-head"><div className="panel-title"><FlaskConical />Backtest results</div>
+          <select aria-label="Filter by strategy" value={filter} onChange={e => setFilter(e.target.value)}><option>All</option>{strategies.map(s => <option key={s}>{s}</option>)}</select></div>
+        <div className="p-5 space-y-4">
+          {!userId ? <div className="empty">Sign in to log and view your backtests.</div> : <>
+            <div className="text-sm font-mono">{rows.length} tests · <span className="positive">{wins} wins</span> · <span className="negative">{rows.length - wins} losses</span> · win rate {rows.length ? ((wins / rows.length) * 100).toFixed(1) : '0.0'}%</div>
+            {byStrategy.length > 0 && <div className="flex flex-wrap gap-3 text-xs font-mono text-muted-foreground">{byStrategy.map(b => <span key={b.s}>{b.s}: {b.rate.toFixed(0)}% of {b.n}</span>)}</div>}
+            {rows.length ? <div className="space-y-2">{rows.map(r => (
+              <div key={r.id} className="strategy-row gap-3">
+                {r.screenshot_path ? <Shot path={r.screenshot_path} /> : <div className="h-12 w-20" />}
+                <span className="flex-1">{r.strategy} <span className="panel-meta ml-2">{new Date(r.created_at).toLocaleDateString()}</span></span>
+                <span className="text-xs font-mono">TP {Number(r.target)}% · SL {Number(r.stop)}% · R:R {(Number(r.target) / Number(r.stop) || 0).toFixed(2)}</span>
+                <span className={r.outcome === 'Win' ? 'positive' : 'negative'}>{r.outcome.toUpperCase()}</span>
+                <Button size="icon" variant="ghost" title="Delete" onClick={() => { if (window.confirm('Delete this backtest?')) remove.mutate(r.id); }}><Trash2 /></Button>
+              </div>))}</div> : <div className="empty">No backtests yet. Upload your first screenshot above.</div>}
+          </>}
+        </div>
+      </section>
+    </>
   );
 }
