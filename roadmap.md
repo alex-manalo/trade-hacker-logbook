@@ -3,4 +3,6 @@
 - [x] Add private trade saving, sign-in, filtering and export.
 - [x] Calendar day opens that day's trades.
 - [x] Screenshot per trade + AI auto-fill from screenshot.
-- [ ] Verify private saving, screenshot upload and auto-fill signed in — no accounts exist yet.
+- [x] Verified signed in: backtest screenshot auto-fill + save, duplicate skip on re-import, strategy rename.
+- [x] Backtest entries editable (strategy, target, stop, result).
+- [x] "Most winnable strategy" card on Backtest page.
