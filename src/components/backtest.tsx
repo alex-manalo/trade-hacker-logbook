@@ -39,6 +39,12 @@ export function backtestStats(rows: BacktestRow[]) {
   };
 }
 
+// Strategies ranked by win rate; ties go to the larger sample, then to total R.
+export function rankStrategies(rows: BacktestRow[]) {
+  return [...new Set(rows.map(r => r.strategy))].map(s => { const st = backtestStats(rows.filter(r => r.strategy === s)); return { s, n: st.count, wins: st.wins, rate: st.winRate, total: st.total }; })
+    .sort((a, b) => b.rate - a.rate || b.n - a.n || b.total - a.total);
+}
+
 function Shot({ path }: { path: string }) {
   const [url, setUrl] = useState<string>();
   useEffect(() => { supabase.storage.from('trade-screenshots').createSignedUrl(path, 3600).then(r => setUrl(r.data?.signedUrl)); }, [path]);
@@ -110,8 +116,7 @@ export function Backtest({ userId, onSignIn, period = 'All time' }: { userId: st
   const all = inPeriod(list.data ?? [], period);
   const rows = all.filter(r => filter === 'All' || r.strategy === filter);
   const wins = rows.filter(r => r.outcome === 'Win').length;
-  const byStrategy = [...new Set(all.map(r => r.strategy))].map(s => { const rs = all.filter(r => r.strategy === s); const st = backtestStats(rs); return { s, n: rs.length, wins: st.wins, rate: st.winRate, total: st.total }; })
-    .sort((a, b) => b.rate - a.rate || b.n - a.n || b.total - a.total);
+  const byStrategy = rankStrategies(all);
   const best = byStrategy[0];
 
   return (
