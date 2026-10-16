@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useServerFn } from '@tanstack/react-start';
-import { FlaskConical, ImagePlus, Trash2 } from 'lucide-react';
+import { Check, FlaskConical, ImagePlus, Pencil, Trash2, Trophy, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
@@ -54,6 +54,8 @@ export function Backtest({ userId, onSignIn, period = 'All time' }: { userId: st
   const [reading, setReading] = useState(false);
   const [form, setForm] = useState({ target: '', stop: '', strategy: '', outcome: 'Win' });
   const [filter, setFilter] = useState('All');
+  const [editing, setEditing] = useState<string | null>(null);
+  const [draft, setDraft] = useState({ target: '', stop: '', strategy: '', outcome: 'Win' });
 
   const list = useBacktests(userId);
 
@@ -86,6 +88,19 @@ export function Backtest({ userId, onSignIn, period = 'All time' }: { userId: st
     onError: e => toast.error(e.message),
   });
 
+  const update = useMutation({
+    mutationFn: async (id: string) => {
+      const target = Number(draft.target), stop = Number(draft.stop);
+      if (!(target > 0) || !(stop > 0)) throw new Error('Target and stop loss must be greater than 0.');
+      const { error } = await supabase.from('backtests').update({ strategy: draft.strategy, target, stop, outcome: draft.outcome }).eq('id', id);
+      if (error) throw error;
+    },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['backtests'] }); toast.success('Backtest updated.'); setEditing(null); },
+    onError: e => toast.error(e.message),
+  });
+
+  function startEdit(r: BacktestRow) { setEditing(r.id); setDraft({ target: String(Number(r.target)), stop: String(Number(r.stop)), strategy: r.strategy, outcome: r.outcome }); }
+
   const remove = useMutation({
     mutationFn: async (id: string) => { const { error } = await supabase.from('backtests').delete().eq('id', id); if (error) throw error; },
     onSuccess: () => qc.invalidateQueries({ queryKey: ['backtests'] }),
@@ -95,7 +110,9 @@ export function Backtest({ userId, onSignIn, period = 'All time' }: { userId: st
   const all = inPeriod(list.data ?? [], period);
   const rows = all.filter(r => filter === 'All' || r.strategy === filter);
   const wins = rows.filter(r => r.outcome === 'Win').length;
-  const byStrategy = [...new Set(all.map(r => r.strategy))].map(s => { const rs = all.filter(r => r.strategy === s); const w = rs.filter(r => r.outcome === 'Win').length; return { s, n: rs.length, rate: (w / rs.length) * 100 }; });
+  const byStrategy = [...new Set(all.map(r => r.strategy))].map(s => { const rs = all.filter(r => r.strategy === s); const st = backtestStats(rs); return { s, n: rs.length, wins: st.wins, rate: st.winRate, total: st.total }; })
+    .sort((a, b) => b.rate - a.rate || b.n - a.n || b.total - a.total);
+  const best = byStrategy[0];
 
   return (
     <>
@@ -119,14 +136,40 @@ export function Backtest({ userId, onSignIn, period = 'All time' }: { userId: st
         <div className="p-5 space-y-4">
           {!userId ? <div className="empty">Sign in to log and view your backtests.</div> : <>
             <div className="text-sm font-mono">{rows.length} tests · <span className="positive">{wins} wins</span> · <span className="negative">{rows.length - wins} losses</span> · win rate {rows.length ? ((wins / rows.length) * 100).toFixed(1) : '0.0'}%</div>
-            {byStrategy.length > 0 && <div className="flex flex-wrap gap-3 text-xs font-mono text-muted-foreground">{byStrategy.map(b => <span key={b.s}>{b.s}: {b.rate.toFixed(0)}% of {b.n}</span>)}</div>}
+            {best && (
+              <div className="rounded border border-primary/40 bg-primary/5 p-4 space-y-2" aria-label="Most winnable strategy">
+                <div className="flex items-center gap-2 text-xs font-mono uppercase tracking-wider text-muted-foreground"><Trophy className="h-4 w-4 text-primary" />Most winnable strategy</div>
+                <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
+                  <span className="text-xl font-mono font-semibold">{best.s}</span>
+                  <span className="positive font-mono">{best.rate.toFixed(0)}% win rate</span>
+                  <span className="text-xs font-mono text-muted-foreground">{best.wins} of {best.n} {best.n === 1 ? 'test' : 'tests'} · {best.total >= 0 ? '+' : ''}{best.total.toFixed(2)}R</span>
+                </div>
+                {best.n < 5 && <div className="text-xs text-muted-foreground">Based on only {best.n} {best.n === 1 ? 'backtest' : 'backtests'} so far. Log more to make this reliable.</div>}
+                {byStrategy.length > 1 && <div className="flex flex-wrap gap-3 text-xs font-mono text-muted-foreground">{byStrategy.slice(1).map(b => <span key={b.s}>{b.s}: {b.rate.toFixed(0)}% of {b.n}</span>)}</div>}
+              </div>
+            )}
             {rows.length ? <div className="space-y-2">{rows.map(r => (
-              <div key={r.id} className="strategy-row gap-3">
+              <div key={r.id} className="strategy-row gap-3 flex-wrap">
                 {r.screenshot_path ? <Shot path={r.screenshot_path} /> : <div className="h-12 w-20" />}
-                <span className="flex-1">{r.strategy} <span className="panel-meta ml-2">{new Date(r.created_at).toLocaleDateString()}</span></span>
-                <span className="text-xs font-mono">TP {Number(r.target)}% · SL {Number(r.stop)}% · R:R {(Number(r.target) / Number(r.stop) || 0).toFixed(2)}</span>
-                <span className={r.outcome === 'Win' ? 'positive' : 'negative'}>{r.outcome.toUpperCase()}</span>
-                <Button size="icon" variant="ghost" title="Delete" onClick={() => { if (window.confirm('Delete this backtest?')) remove.mutate(r.id); }}><Trash2 /></Button>
+                {editing === r.id ? (
+                  <>
+                    <select aria-label="Strategy" value={draft.strategy} onChange={e => setDraft({ ...draft, strategy: e.target.value })}>{[...new Set([draft.strategy, ...strategies])].map(x => <option key={x}>{x}</option>)}</select>
+                    <Input aria-label="Target (%)" className="w-24" type="number" step="any" min={0} value={draft.target} onChange={e => setDraft({ ...draft, target: e.target.value })} />
+                    <Input aria-label="Stop loss (%)" className="w-24" type="number" step="any" min={0} value={draft.stop} onChange={e => setDraft({ ...draft, stop: e.target.value })} />
+                    <select aria-label="Result" value={draft.outcome} onChange={e => setDraft({ ...draft, outcome: e.target.value })}><option>Win</option><option>Loss</option></select>
+                    <span className="flex-1" />
+                    <Button size="icon" variant="ghost" title="Save changes" disabled={update.isPending} onClick={() => update.mutate(r.id)}><Check /></Button>
+                    <Button size="icon" variant="ghost" title="Cancel" onClick={() => setEditing(null)}><X /></Button>
+                  </>
+                ) : (
+                  <>
+                    <span className="flex-1">{r.strategy} <span className="panel-meta ml-2">{new Date(r.created_at).toLocaleDateString()}</span></span>
+                    <span className="text-xs font-mono">TP {Number(r.target)}% · SL {Number(r.stop)}% · R:R {(Number(r.target) / Number(r.stop) || 0).toFixed(2)}</span>
+                    <span className={r.outcome === 'Win' ? 'positive' : 'negative'}>{r.outcome.toUpperCase()}</span>
+                    <Button size="icon" variant="ghost" title="Edit" onClick={() => startEdit(r)}><Pencil /></Button>
+                    <Button size="icon" variant="ghost" title="Delete" onClick={() => { if (window.confirm('Delete this backtest?')) remove.mutate(r.id); }}><Trash2 /></Button>
+                  </>
+                )}
               </div>))}</div> : <div className="empty">No backtests yet. Upload your first screenshot above.</div>}
           </>}
         </div>
