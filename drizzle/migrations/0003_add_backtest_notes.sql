@@ -1,0 +1,1 @@
+ALTER TABLE public.backtests ADD COLUMN notes TEXT NOT NULL DEFAULT '';

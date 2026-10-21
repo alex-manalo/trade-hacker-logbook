@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useServerFn } from '@tanstack/react-start';
-import { Check, FlaskConical, ImagePlus, Pencil, Trash2, Trophy, X } from 'lucide-react';
+import { CalendarDays, Check, ChevronLeft, ChevronRight, FlaskConical, ImagePlus, Pencil, Trash2, Trophy, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
@@ -9,7 +9,7 @@ import { Input } from '@/components/ui/input';
 import { useStrategies } from '@/lib/strategies';
 import { extractBacktest } from '@/lib/backtest.functions';
 
-export type BacktestRow = { id: string; strategy: string; target: number; stop: number; outcome: string; screenshot_path: string | null; created_at: string };
+export type BacktestRow = { id: string; strategy: string; target: number; stop: number; outcome: string; notes: string; screenshot_path: string | null; created_at: string };
 
 export function useBacktests(userId: string | undefined) {
   return useQuery({
@@ -58,10 +58,12 @@ export function Backtest({ userId, onSignIn, period = 'All time' }: { userId: st
   const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<string>();
   const [reading, setReading] = useState(false);
-  const [form, setForm] = useState({ target: '', stop: '', strategy: '', outcome: 'Win' });
+  const [form, setForm] = useState({ target: '', stop: '', strategy: '', outcome: 'Win', notes: '' });
   const [filter, setFilter] = useState('All');
+  const [day, setDay] = useState<string | null>(null);
+  const [calMonth, setCalMonth] = useState(() => { const d = new Date(); return new Date(d.getFullYear(), d.getMonth(), 1); });
   const [editing, setEditing] = useState<string | null>(null);
-  const [draft, setDraft] = useState({ target: '', stop: '', strategy: '', outcome: 'Win' });
+  const [draft, setDraft] = useState({ target: '', stop: '', strategy: '', outcome: 'Win', notes: '' });
 
   const list = useBacktests(userId);
 
@@ -87,10 +89,10 @@ export function Backtest({ userId, onSignIn, period = 'All time' }: { userId: st
         const up = await supabase.storage.from('trade-screenshots').upload(path, file, { contentType: file.type });
         if (up.error) throw up.error; screenshot_path = path;
       }
-      const { error } = await supabase.from('backtests').insert({ user_id: userId, strategy: form.strategy || strategies[0] || 'Breakout', target: Number(form.target), stop: Number(form.stop), outcome: form.outcome, screenshot_path });
+      const { error } = await supabase.from('backtests').insert({ user_id: userId, strategy: form.strategy || strategies[0] || 'Breakout', target: Number(form.target), stop: Number(form.stop), outcome: form.outcome, notes: form.notes, screenshot_path });
       if (error) throw error;
     },
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['backtests'] }); toast.success('Backtest saved.'); setFile(null); setPreview(undefined); setForm(p => ({ ...p, target: '', stop: '' })); },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['backtests'] }); toast.success('Backtest saved.'); setFile(null); setPreview(undefined); setForm(p => ({ ...p, target: '', stop: '', notes: '' })); },
     onError: e => toast.error(e.message),
   });
 
@@ -98,14 +100,14 @@ export function Backtest({ userId, onSignIn, period = 'All time' }: { userId: st
     mutationFn: async (id: string) => {
       const target = Number(draft.target), stop = Number(draft.stop);
       if (!(target > 0) || !(stop > 0)) throw new Error('Target and stop loss must be greater than 0.');
-      const { error } = await supabase.from('backtests').update({ strategy: draft.strategy, target, stop, outcome: draft.outcome }).eq('id', id);
+      const { error } = await supabase.from('backtests').update({ strategy: draft.strategy, target, stop, outcome: draft.outcome, notes: draft.notes }).eq('id', id);
       if (error) throw error;
     },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['backtests'] }); toast.success('Backtest updated.'); setEditing(null); },
     onError: e => toast.error(e.message),
   });
 
-  function startEdit(r: BacktestRow) { setEditing(r.id); setDraft({ target: String(Number(r.target)), stop: String(Number(r.stop)), strategy: r.strategy, outcome: r.outcome }); }
+  function startEdit(r: BacktestRow) { setEditing(r.id); setDraft({ target: String(Number(r.target)), stop: String(Number(r.stop)), strategy: r.strategy, outcome: r.outcome, notes: r.notes ?? '' }); }
 
   const remove = useMutation({
     mutationFn: async (id: string) => { const { error } = await supabase.from('backtests').delete().eq('id', id); if (error) throw error; },
@@ -114,7 +116,9 @@ export function Backtest({ userId, onSignIn, period = 'All time' }: { userId: st
   });
 
   const all = inPeriod(list.data ?? [], period);
-  const rows = all.filter(r => filter === 'All' || r.strategy === filter);
+  const dayOf = (r: BacktestRow) => r.created_at.slice(0, 10);
+  const rOfRow = (r: BacktestRow) => (r.outcome === 'Win' ? (Number(r.target) / Number(r.stop) || 0) : -1);
+  const rows = all.filter(r => (filter === 'All' || r.strategy === filter) && (!day || dayOf(r) === day));
   const wins = rows.filter(r => r.outcome === 'Win').length;
   const byStrategy = rankStrategies(all);
   const best = byStrategy[0];
@@ -131,12 +135,28 @@ export function Backtest({ userId, onSignIn, period = 'All time' }: { userId: st
             <label className="field">Stop loss (%)<Input type="number" step="any" min={0} required value={form.stop} onChange={e => setForm({ ...form, stop: e.target.value })} /></label>
             <label className="field">Strategy<select value={form.strategy || strategies[0]} onChange={e => setForm({ ...form, strategy: e.target.value })}>{strategies.map(s => <option key={s}>{s}</option>)}</select></label>
             <label className="field">Result<select value={form.outcome} onChange={e => setForm({ ...form, outcome: e.target.value })}><option>Win</option><option>Loss</option></select></label>
+            <label className="field full">Notes<Input placeholder="What did you test? Market, session, conditions..." value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })} /></label>
             <div className="field full flex-row justify-end"><Button disabled={save.isPending || reading}>{save.isPending ? 'Saving...' : 'Save backtest'}</Button></div>
           </form>
         </div>
       </section>
       <section className="panel">
+        {(() => {
+          const y = calMonth.getFullYear(), m = calMonth.getMonth();
+          const days = new Date(y, m + 1, 0).getDate();
+          const offset = (new Date(y, m, 1).getDay() + 6) % 7;
+          const pre = `${y}-${String(m + 1).padStart(2, '0')}-`;
+          const monthR = all.filter(r => dayOf(r).startsWith(pre)).reduce((a, r) => a + rOfRow(r), 0);
+          return <>
+            <div className="panel-head"><div className="panel-title"><CalendarDays />{calMonth.toLocaleString('en-US', { month: 'long', year: 'numeric' })}<span className={`ml-3 text-xs ${monthR >= 0 ? 'positive' : 'negative'}`}>{monthR >= 0 ? '+' : ''}{monthR.toFixed(2)}R</span></div>
+              <div className="flex items-center gap-1"><Button variant="ghost" size="icon" title="Previous month" onClick={() => setCalMonth(new Date(y, m - 1, 1))}><ChevronLeft /></Button><Button variant="ghost" size="sm" onClick={() => { const d = new Date(); setCalMonth(new Date(d.getFullYear(), d.getMonth(), 1)); }}>Today</Button><Button variant="ghost" size="icon" title="Next month" onClick={() => setCalMonth(new Date(y, m + 1, 1))}><ChevronRight /></Button></div></div>
+            <div className="calendar-grid">{['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN'].map(d => <div key={d} className="panel-meta">{d}</div>)}{Array.from({ length: offset }, (_, i) => <div key={`blank${i}`} />)}{Array.from({ length: days }, (_, i) => { const dnum = i + 1; const iso = pre + String(dnum).padStart(2, '0'); const daily = all.filter(r => dayOf(r) === iso); const total = daily.reduce((a, r) => a + rOfRow(r), 0); return <button type="button" title={`View backtests on ${iso}`} className={`calendar-day text-left cursor-pointer hover:border-primary ${day === iso ? 'border-primary' : ''}`} key={dnum} onClick={() => setDay(day === iso ? null : iso)}>{String(dnum).padStart(2, '0')}{daily.length > 0 && <><strong className={total >= 0 ? 'positive' : 'negative'}>{total >= 0 ? '+' : ''}{total.toFixed(1)}R</strong><span className="text-[9px] text-muted-foreground">{daily.length} test{daily.length > 1 ? 's' : ''}</span></>}</button>; })}</div>
+          </>;
+        })()}
+      </section>
+      <section className="panel">
         <div className="panel-head"><div className="panel-title"><FlaskConical />Backtest results</div>
+          {day && <Button variant="outline" size="sm" className="font-mono text-[10px]" onClick={() => setDay(null)}>DAY: {day} ✕</Button>}
           <select aria-label="Filter by strategy" value={filter} onChange={e => setFilter(e.target.value)}><option>All</option>{strategies.map(s => <option key={s}>{s}</option>)}</select></div>
         <div className="p-5 space-y-4">
           {!userId ? <div className="empty">Sign in to log and view your backtests.</div> : <>
@@ -162,13 +182,14 @@ export function Backtest({ userId, onSignIn, period = 'All time' }: { userId: st
                     <Input aria-label="Target (%)" className="w-24" type="number" step="any" min={0} value={draft.target} onChange={e => setDraft({ ...draft, target: e.target.value })} />
                     <Input aria-label="Stop loss (%)" className="w-24" type="number" step="any" min={0} value={draft.stop} onChange={e => setDraft({ ...draft, stop: e.target.value })} />
                     <select aria-label="Result" value={draft.outcome} onChange={e => setDraft({ ...draft, outcome: e.target.value })}><option>Win</option><option>Loss</option></select>
+                    <Input aria-label="Notes" className="w-48" placeholder="Notes" value={draft.notes} onChange={e => setDraft({ ...draft, notes: e.target.value })} />
                     <span className="flex-1" />
                     <Button size="icon" variant="ghost" title="Save changes" disabled={update.isPending} onClick={() => update.mutate(r.id)}><Check /></Button>
                     <Button size="icon" variant="ghost" title="Cancel" onClick={() => setEditing(null)}><X /></Button>
                   </>
                 ) : (
                   <>
-                    <span className="flex-1">{r.strategy} <span className="panel-meta ml-2">{new Date(r.created_at).toLocaleDateString()}</span></span>
+                    <span className="flex-1">{r.strategy} <span className="panel-meta ml-2">{new Date(r.created_at).toLocaleDateString()}</span>{r.notes && <span className="block text-xs text-muted-foreground mt-0.5">{r.notes}</span>}</span>
                     <span className="text-xs font-mono">TP {Number(r.target)}% · SL {Number(r.stop)}% · R:R {(Number(r.target) / Number(r.stop) || 0).toFixed(2)}</span>
                     <span className={r.outcome === 'Win' ? 'positive' : 'negative'}>{r.outcome.toUpperCase()}</span>
                     <Button size="icon" variant="ghost" title="Edit" onClick={() => startEdit(r)}><Pencil /></Button>

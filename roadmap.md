@@ -6,3 +6,5 @@
 - [x] Verified signed in: backtest screenshot auto-fill + save, duplicate skip on re-import, strategy rename.
 - [x] Backtest entries editable (strategy, target, stop, result).
 - [x] "Most winnable strategy" card on Backtest page.
+- [x] Notes field per backtest entry (create + edit).
+- [x] Calendar view on Backtest page with month nav and day filter.

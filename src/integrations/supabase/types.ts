@@ -18,6 +18,7 @@ export type Database = {
         Row: {
           created_at: string
           id: string
+          notes: string
           outcome: string
           screenshot_path: string | null
           stop: number
@@ -28,6 +29,7 @@ export type Database = {
         Insert: {
           created_at?: string
           id?: string
+          notes?: string
           outcome: string
           screenshot_path?: string | null
           stop: number
@@ -38,6 +40,7 @@ export type Database = {
         Update: {
           created_at?: string
           id?: string
+          notes?: string
           outcome?: string
           screenshot_path?: string | null
           stop?: number
