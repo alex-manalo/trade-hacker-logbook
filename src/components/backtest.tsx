@@ -182,13 +182,14 @@ export function Backtest({ userId, onSignIn, period = 'All time' }: { userId: st
                     <Input aria-label="Target (%)" className="w-24" type="number" step="any" min={0} value={draft.target} onChange={e => setDraft({ ...draft, target: e.target.value })} />
                     <Input aria-label="Stop loss (%)" className="w-24" type="number" step="any" min={0} value={draft.stop} onChange={e => setDraft({ ...draft, stop: e.target.value })} />
                     <select aria-label="Result" value={draft.outcome} onChange={e => setDraft({ ...draft, outcome: e.target.value })}><option>Win</option><option>Loss</option></select>
+                    <Input aria-label="Notes" className="w-48" placeholder="Notes" value={draft.notes} onChange={e => setDraft({ ...draft, notes: e.target.value })} />
                     <span className="flex-1" />
                     <Button size="icon" variant="ghost" title="Save changes" disabled={update.isPending} onClick={() => update.mutate(r.id)}><Check /></Button>
                     <Button size="icon" variant="ghost" title="Cancel" onClick={() => setEditing(null)}><X /></Button>
                   </>
                 ) : (
                   <>
-                    <span className="flex-1">{r.strategy} <span className="panel-meta ml-2">{new Date(r.created_at).toLocaleDateString()}</span></span>
+                    <span className="flex-1">{r.strategy} <span className="panel-meta ml-2">{new Date(r.created_at).toLocaleDateString()}</span>{r.notes && <span className="block text-xs text-muted-foreground mt-0.5">{r.notes}</span>}</span>
                     <span className="text-xs font-mono">TP {Number(r.target)}% · SL {Number(r.stop)}% · R:R {(Number(r.target) / Number(r.stop) || 0).toFixed(2)}</span>
                     <span className={r.outcome === 'Win' ? 'positive' : 'negative'}>{r.outcome.toUpperCase()}</span>
                     <Button size="icon" variant="ghost" title="Edit" onClick={() => startEdit(r)}><Pencil /></Button>
