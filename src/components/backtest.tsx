@@ -89,10 +89,10 @@ export function Backtest({ userId, onSignIn, period = 'All time' }: { userId: st
         const up = await supabase.storage.from('trade-screenshots').upload(path, file, { contentType: file.type });
         if (up.error) throw up.error; screenshot_path = path;
       }
-      const { error } = await supabase.from('backtests').insert({ user_id: userId, strategy: form.strategy || strategies[0] || 'Breakout', target: Number(form.target), stop: Number(form.stop), outcome: form.outcome, screenshot_path });
+      const { error } = await supabase.from('backtests').insert({ user_id: userId, strategy: form.strategy || strategies[0] || 'Breakout', target: Number(form.target), stop: Number(form.stop), outcome: form.outcome, notes: form.notes, screenshot_path });
       if (error) throw error;
     },
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['backtests'] }); toast.success('Backtest saved.'); setFile(null); setPreview(undefined); setForm(p => ({ ...p, target: '', stop: '' })); },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['backtests'] }); toast.success('Backtest saved.'); setFile(null); setPreview(undefined); setForm(p => ({ ...p, target: '', stop: '', notes: '' })); },
     onError: e => toast.error(e.message),
   });
 
@@ -100,14 +100,14 @@ export function Backtest({ userId, onSignIn, period = 'All time' }: { userId: st
     mutationFn: async (id: string) => {
       const target = Number(draft.target), stop = Number(draft.stop);
       if (!(target > 0) || !(stop > 0)) throw new Error('Target and stop loss must be greater than 0.');
-      const { error } = await supabase.from('backtests').update({ strategy: draft.strategy, target, stop, outcome: draft.outcome }).eq('id', id);
+      const { error } = await supabase.from('backtests').update({ strategy: draft.strategy, target, stop, outcome: draft.outcome, notes: draft.notes }).eq('id', id);
       if (error) throw error;
     },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['backtests'] }); toast.success('Backtest updated.'); setEditing(null); },
     onError: e => toast.error(e.message),
   });
 
-  function startEdit(r: BacktestRow) { setEditing(r.id); setDraft({ target: String(Number(r.target)), stop: String(Number(r.stop)), strategy: r.strategy, outcome: r.outcome }); }
+  function startEdit(r: BacktestRow) { setEditing(r.id); setDraft({ target: String(Number(r.target)), stop: String(Number(r.stop)), strategy: r.strategy, outcome: r.outcome, notes: r.notes ?? '' }); }
 
   const remove = useMutation({
     mutationFn: async (id: string) => { const { error } = await supabase.from('backtests').delete().eq('id', id); if (error) throw error; },
