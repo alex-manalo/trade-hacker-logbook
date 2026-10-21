@@ -116,7 +116,9 @@ export function Backtest({ userId, onSignIn, period = 'All time' }: { userId: st
   });
 
   const all = inPeriod(list.data ?? [], period);
-  const rows = all.filter(r => filter === 'All' || r.strategy === filter);
+  const dayOf = (r: BacktestRow) => r.created_at.slice(0, 10);
+  const rOfRow = (r: BacktestRow) => (r.outcome === 'Win' ? (Number(r.target) / Number(r.stop) || 0) : -1);
+  const rows = all.filter(r => (filter === 'All' || r.strategy === filter) && (!day || dayOf(r) === day));
   const wins = rows.filter(r => r.outcome === 'Win').length;
   const byStrategy = rankStrategies(all);
   const best = byStrategy[0];
@@ -133,6 +135,7 @@ export function Backtest({ userId, onSignIn, period = 'All time' }: { userId: st
             <label className="field">Stop loss (%)<Input type="number" step="any" min={0} required value={form.stop} onChange={e => setForm({ ...form, stop: e.target.value })} /></label>
             <label className="field">Strategy<select value={form.strategy || strategies[0]} onChange={e => setForm({ ...form, strategy: e.target.value })}>{strategies.map(s => <option key={s}>{s}</option>)}</select></label>
             <label className="field">Result<select value={form.outcome} onChange={e => setForm({ ...form, outcome: e.target.value })}><option>Win</option><option>Loss</option></select></label>
+            <label className="field full">Notes<Input placeholder="What did you test? Market, session, conditions..." value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })} /></label>
             <div className="field full flex-row justify-end"><Button disabled={save.isPending || reading}>{save.isPending ? 'Saving...' : 'Save backtest'}</Button></div>
           </form>
         </div>
