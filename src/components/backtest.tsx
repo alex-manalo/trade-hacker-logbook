@@ -5,6 +5,7 @@ import { CalendarDays, Check, ChevronLeft, ChevronRight, FlaskConical, ImagePlus
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
+import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { useStrategies } from '@/lib/strategies';
 import { extractBacktest } from '@/lib/backtest.functions';
@@ -48,7 +49,41 @@ export function rankStrategies(rows: BacktestRow[]) {
 function Shot({ path }: { path: string }) {
   const [url, setUrl] = useState<string>();
   useEffect(() => { supabase.storage.from('trade-screenshots').createSignedUrl(path, 3600).then(r => setUrl(r.data?.signedUrl)); }, [path]);
-  return url ? <a href={url} target="_blank" rel="noreferrer"><img src={url} alt="Backtest screenshot" className="h-12 w-20 rounded border border-border object-cover" /></a> : <div className="h-12 w-20" />;
+  return url ? <a href={url} target="_blank" rel="noreferrer" onClick={e => e.stopPropagation()}><img src={url} alt="Backtest screenshot" className="h-12 w-20 rounded border border-border object-cover" /></a> : <div className="h-12 w-20" />;
+}
+
+function BigShot({ path }: { path: string }) {
+  const [url, setUrl] = useState<string>();
+  useEffect(() => { supabase.storage.from('trade-screenshots').createSignedUrl(path, 3600).then(r => setUrl(r.data?.signedUrl)); }, [path]);
+  return url ? <a href={url} target="_blank" rel="noreferrer"><img src={url} alt="Backtest screenshot" className="max-h-72 w-full rounded border border-border object-contain bg-background" /></a> : null;
+}
+
+function BacktestDialog({ row, onClose, onEdit, onDelete }: { row: BacktestRow | null; onClose: () => void; onEdit: (r: BacktestRow) => void; onDelete: (id: string) => void }) {
+  if (!row) return null;
+  const rr = Number(row.target) / Number(row.stop) || 0;
+  const r = row.outcome === 'Win' ? rr : -1;
+  return (
+    <Dialog open onOpenChange={v => { if (!v) onClose(); }}>
+      <DialogContent className="max-h-[90vh] overflow-auto space-y-4">
+        <DialogTitle className="font-mono">Backtest record <span className={r >= 0 ? 'positive' : 'negative'}>{r >= 0 ? '+' : ''}{r.toFixed(2)}R</span></DialogTitle>
+        <DialogDescription>Strategy test & outcome</DialogDescription>
+        {row.screenshot_path && <BigShot path={row.screenshot_path} />}
+        <div className="grid grid-cols-2 gap-3 text-sm font-mono">
+          <div><div className="panel-meta">STRATEGY</div>{row.strategy}</div>
+          <div><div className="panel-meta">DATE</div>{new Date(row.created_at).toLocaleDateString('en-US', { month: 'short', day: '2-digit', year: 'numeric' })}</div>
+          <div><div className="panel-meta">TARGET</div>{Number(row.target)}%</div>
+          <div><div className="panel-meta">STOP LOSS</div>{Number(row.stop)}%</div>
+          <div><div className="panel-meta">RISK : REWARD</div>{rr.toFixed(2)}</div>
+          <div><div className="panel-meta">RESULT</div><span className={row.outcome === 'Win' ? 'positive' : 'negative'}>{row.outcome.toUpperCase()}</span></div>
+        </div>
+        {row.notes && <div><div className="panel-meta">NOTES</div><p className="text-sm text-muted-foreground whitespace-pre-wrap">{row.notes}</p></div>}
+        <div className="flex justify-end gap-2">
+          <Button variant="outline" onClick={() => onEdit(row)}><Pencil />Edit</Button>
+          <Button variant="outline" onClick={() => { if (window.confirm('Delete this backtest?')) onDelete(row.id); }}><Trash2 />Delete</Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
 }
 
 export function Backtest({ userId, onSignIn, period = 'All time' }: { userId: string | undefined; onSignIn: () => void; period?: string }) {
