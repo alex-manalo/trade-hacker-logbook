@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useServerFn } from '@tanstack/react-start';
-import { Check, FlaskConical, ImagePlus, Pencil, Trash2, Trophy, X } from 'lucide-react';
+import { CalendarDays, Check, ChevronLeft, ChevronRight, FlaskConical, ImagePlus, Pencil, Trash2, Trophy, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
@@ -9,7 +9,7 @@ import { Input } from '@/components/ui/input';
 import { useStrategies } from '@/lib/strategies';
 import { extractBacktest } from '@/lib/backtest.functions';
 
-export type BacktestRow = { id: string; strategy: string; target: number; stop: number; outcome: string; screenshot_path: string | null; created_at: string };
+export type BacktestRow = { id: string; strategy: string; target: number; stop: number; outcome: string; notes: string; screenshot_path: string | null; created_at: string };
 
 export function useBacktests(userId: string | undefined) {
   return useQuery({
@@ -58,10 +58,12 @@ export function Backtest({ userId, onSignIn, period = 'All time' }: { userId: st
   const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<string>();
   const [reading, setReading] = useState(false);
-  const [form, setForm] = useState({ target: '', stop: '', strategy: '', outcome: 'Win' });
+  const [form, setForm] = useState({ target: '', stop: '', strategy: '', outcome: 'Win', notes: '' });
   const [filter, setFilter] = useState('All');
+  const [day, setDay] = useState<string | null>(null);
+  const [calMonth, setCalMonth] = useState(() => { const d = new Date(); return new Date(d.getFullYear(), d.getMonth(), 1); });
   const [editing, setEditing] = useState<string | null>(null);
-  const [draft, setDraft] = useState({ target: '', stop: '', strategy: '', outcome: 'Win' });
+  const [draft, setDraft] = useState({ target: '', stop: '', strategy: '', outcome: 'Win', notes: '' });
 
   const list = useBacktests(userId);
 
