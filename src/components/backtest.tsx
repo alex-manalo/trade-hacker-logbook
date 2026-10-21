@@ -141,7 +141,22 @@ export function Backtest({ userId, onSignIn, period = 'All time' }: { userId: st
         </div>
       </section>
       <section className="panel">
+        {(() => {
+          const y = calMonth.getFullYear(), m = calMonth.getMonth();
+          const days = new Date(y, m + 1, 0).getDate();
+          const offset = (new Date(y, m, 1).getDay() + 6) % 7;
+          const pre = `${y}-${String(m + 1).padStart(2, '0')}-`;
+          const monthR = all.filter(r => dayOf(r).startsWith(pre)).reduce((a, r) => a + rOfRow(r), 0);
+          return <>
+            <div className="panel-head"><div className="panel-title"><CalendarDays />{calMonth.toLocaleString('en-US', { month: 'long', year: 'numeric' })}<span className={`ml-3 text-xs ${monthR >= 0 ? 'positive' : 'negative'}`}>{monthR >= 0 ? '+' : ''}{monthR.toFixed(2)}R</span></div>
+              <div className="flex items-center gap-1"><Button variant="ghost" size="icon" title="Previous month" onClick={() => setCalMonth(new Date(y, m - 1, 1))}><ChevronLeft /></Button><Button variant="ghost" size="sm" onClick={() => { const d = new Date(); setCalMonth(new Date(d.getFullYear(), d.getMonth(), 1)); }}>Today</Button><Button variant="ghost" size="icon" title="Next month" onClick={() => setCalMonth(new Date(y, m + 1, 1))}><ChevronRight /></Button></div></div>
+            <div className="calendar-grid">{['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN'].map(d => <div key={d} className="panel-meta">{d}</div>)}{Array.from({ length: offset }, (_, i) => <div key={`blank${i}`} />)}{Array.from({ length: days }, (_, i) => { const dnum = i + 1; const iso = pre + String(dnum).padStart(2, '0'); const daily = all.filter(r => dayOf(r) === iso); const total = daily.reduce((a, r) => a + rOfRow(r), 0); return <button type="button" title={`View backtests on ${iso}`} className={`calendar-day text-left cursor-pointer hover:border-primary ${day === iso ? 'border-primary' : ''}`} key={dnum} onClick={() => setDay(day === iso ? null : iso)}>{String(dnum).padStart(2, '0')}{daily.length > 0 && <><strong className={total >= 0 ? 'positive' : 'negative'}>{total >= 0 ? '+' : ''}{total.toFixed(1)}R</strong><span className="text-[9px] text-muted-foreground">{daily.length} test{daily.length > 1 ? 's' : ''}</span></>}</button>; })}</div>
+          </>;
+        })()}
+      </section>
+      <section className="panel">
         <div className="panel-head"><div className="panel-title"><FlaskConical />Backtest results</div>
+          {day && <Button variant="outline" size="sm" className="font-mono text-[10px]" onClick={() => setDay(null)}>DAY: {day} ✕</Button>}
           <select aria-label="Filter by strategy" value={filter} onChange={e => setFilter(e.target.value)}><option>All</option>{strategies.map(s => <option key={s}>{s}</option>)}</select></div>
         <div className="p-5 space-y-4">
           {!userId ? <div className="empty">Sign in to log and view your backtests.</div> : <>
