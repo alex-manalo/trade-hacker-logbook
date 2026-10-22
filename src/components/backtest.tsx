@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useServerFn } from '@tanstack/react-start';
-import { Check, FlaskConical, ImagePlus, Pencil, Trash2, Trophy, X } from 'lucide-react';
+import { Check, ChevronLeft, ChevronRight, FlaskConical, ImagePlus, Pencil, Trash2, Trophy, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
@@ -61,33 +61,59 @@ function CardShot({ path }: { path: string }) {
   return url ? <img src={url} alt="Backtest screenshot" loading="lazy" /> : null;
 }
 
-function BigShot({ path }: { path: string }) {
+function DialogShot({ path }: { path: string }) {
   const url = useShotUrl(path);
-  return url ? <a href={url} target="_blank" rel="noreferrer"><img src={url} alt="Backtest screenshot" className="max-h-72 w-full rounded border border-border object-contain bg-background" /></a> : null;
+  return url ? (
+    <a href={url} target="_blank" rel="noreferrer" className="flex h-full w-full items-center justify-center">
+      <img src={url} alt="Backtest screenshot" className="max-h-full max-w-full rounded border border-border object-contain bg-background" />
+    </a>
+  ) : null;
 }
 
-function BacktestDialog({ row, onClose, onEdit, onDelete }: { row: BacktestRow | null; onClose: () => void; onEdit: (r: BacktestRow) => void; onDelete: (id: string) => void }) {
+function BacktestDialog({ rows, viewingId, onClose, onNavigate, onEdit, onDelete }: { rows: BacktestRow[]; viewingId: string | null; onClose: () => void; onNavigate: (id: string) => void; onEdit: (r: BacktestRow) => void; onDelete: (id: string) => void }) {
+  const index = rows.findIndex(r => r.id === viewingId);
+  const row = index >= 0 ? rows[index] : null;
+  useEffect(() => {
+    if (!row) return;
+    const h = (e: KeyboardEvent) => {
+      if (e.key === 'ArrowRight' && index < rows.length - 1) onNavigate(rows[index + 1].id);
+      if (e.key === 'ArrowLeft' && index > 0) onNavigate(rows[index - 1].id);
+    };
+    window.addEventListener('keydown', h);
+    return () => window.removeEventListener('keydown', h);
+  }, [row, index, rows, onNavigate]);
   if (!row) return null;
   const rr = Number(row.target) / Number(row.stop) || 0;
   const r = row.outcome === 'Win' ? rr : -1;
   return (
     <Dialog open onOpenChange={v => { if (!v) onClose(); }}>
-      <DialogContent className="max-h-[90vh] overflow-auto space-y-4">
-        <DialogTitle className="font-mono">Backtest record <span className={r >= 0 ? 'positive' : 'negative'}>{r >= 0 ? '+' : ''}{r.toFixed(2)}R</span></DialogTitle>
-        <DialogDescription>Strategy test & outcome</DialogDescription>
-        {row.screenshot_path && <BigShot path={row.screenshot_path} />}
-        <div className="grid grid-cols-2 gap-3 text-sm font-mono">
-          <div><div className="panel-meta">STRATEGY</div>{row.strategy}</div>
-          <div><div className="panel-meta">DATE</div>{new Date(row.created_at).toLocaleDateString('en-US', { month: 'short', day: '2-digit', year: 'numeric' })}</div>
-          <div><div className="panel-meta">TARGET</div>{Number(row.target)}%</div>
-          <div><div className="panel-meta">STOP LOSS</div>{Number(row.stop)}%</div>
-          <div><div className="panel-meta">RISK : REWARD</div>{rr.toFixed(2)}</div>
-          <div><div className="panel-meta">RESULT</div><span className={row.outcome === 'Win' ? 'positive' : 'negative'}>{row.outcome.toUpperCase()}</span></div>
+      <DialogContent className="flex h-[94vh] max-h-[94vh] w-[96vw] max-w-[96vw] flex-col gap-0 overflow-hidden p-0">
+        <div className="flex min-h-0 flex-1">
+          <div className="flex min-w-0 flex-1 items-center justify-center p-4">
+            {row.screenshot_path ? <DialogShot path={row.screenshot_path} /> : <div className="empty"><ImagePlus className="h-5 w-5" />NO SCREENSHOT</div>}
+          </div>
+          <aside className="w-80 shrink-0 space-y-4 overflow-y-auto border-l border-border p-6">
+            <DialogTitle className="font-mono">Backtest record <span className={r >= 0 ? 'positive' : 'negative'}>{r >= 0 ? '+' : ''}{r.toFixed(2)}R</span></DialogTitle>
+            <DialogDescription>Strategy test & outcome</DialogDescription>
+            <div className="grid grid-cols-2 gap-3 text-sm font-mono">
+              <div><div className="panel-meta">STRATEGY</div>{row.strategy}</div>
+              <div><div className="panel-meta">DATE</div>{new Date(row.created_at).toLocaleDateString('en-US', { month: 'short', day: '2-digit', year: 'numeric' })}</div>
+              <div><div className="panel-meta">TARGET</div>{Number(row.target)}%</div>
+              <div><div className="panel-meta">STOP LOSS</div>{Number(row.stop)}%</div>
+              <div><div className="panel-meta">RISK : REWARD</div>{rr.toFixed(2)}</div>
+              <div><div className="panel-meta">RESULT</div><span className={row.outcome === 'Win' ? 'positive' : 'negative'}>{row.outcome.toUpperCase()}</span></div>
+            </div>
+            {row.notes && <div><div className="panel-meta">NOTES</div><p className="text-sm text-muted-foreground whitespace-pre-wrap">{row.notes}</p></div>}
+            <div className="flex justify-end gap-2 pt-2">
+              <Button variant="outline" onClick={() => onEdit(row)}><Pencil />Edit</Button>
+              <Button variant="outline" onClick={() => { if (window.confirm('Delete this backtest?')) onDelete(row.id); }}><Trash2 />Delete</Button>
+            </div>
+          </aside>
         </div>
-        {row.notes && <div><div className="panel-meta">NOTES</div><p className="text-sm text-muted-foreground whitespace-pre-wrap">{row.notes}</p></div>}
-        <div className="flex justify-end gap-2">
-          <Button variant="outline" onClick={() => onEdit(row)}><Pencil />Edit</Button>
-          <Button variant="outline" onClick={() => { if (window.confirm('Delete this backtest?')) onDelete(row.id); }}><Trash2 />Delete</Button>
+        <div className="flex items-center justify-between border-t border-border px-4 py-2 font-mono text-xs">
+          <Button variant="ghost" size="sm" disabled={index <= 0} onClick={() => onNavigate(rows[index - 1].id)}><ChevronLeft />PREV</Button>
+          <span className="text-muted-foreground">{index + 1} / {rows.length}</span>
+          <Button variant="ghost" size="sm" disabled={index >= rows.length - 1} onClick={() => onNavigate(rows[index + 1].id)}>NEXT<ChevronRight /></Button>
         </div>
       </DialogContent>
     </Dialog>
