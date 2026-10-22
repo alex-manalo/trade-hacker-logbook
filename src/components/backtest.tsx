@@ -98,6 +98,7 @@ export function Backtest({ userId, onSignIn, period = 'All time' }: { userId: st
   const [day, setDay] = useState<string | null>(null);
   const [calMonth, setCalMonth] = useState(() => { const d = new Date(); return new Date(d.getFullYear(), d.getMonth(), 1); });
   const [editing, setEditing] = useState<string | null>(null);
+  const [viewing, setViewing] = useState<BacktestRow | null>(null);
   const [draft, setDraft] = useState({ target: '', stop: '', strategy: '', outcome: 'Win', notes: '' });
 
   const list = useBacktests(userId);
@@ -209,7 +210,7 @@ export function Backtest({ userId, onSignIn, period = 'All time' }: { userId: st
               </div>
             )}
             {rows.length ? <div className="space-y-2">{rows.map(r => (
-              <div key={r.id} className="strategy-row gap-3 flex-wrap">
+              <div key={r.id} className={`strategy-row gap-3 flex-wrap ${editing === r.id ? '' : 'cursor-pointer hover:border-primary'}`} onClick={() => { if (editing !== r.id) setViewing(r); }}>
                 {r.screenshot_path ? <Shot path={r.screenshot_path} /> : <div className="h-12 w-20" />}
                 {editing === r.id ? (
                   <>
@@ -227,14 +228,15 @@ export function Backtest({ userId, onSignIn, period = 'All time' }: { userId: st
                     <span className="flex-1">{r.strategy} <span className="panel-meta ml-2">{new Date(r.created_at).toLocaleDateString()}</span>{r.notes && <span className="block text-xs text-muted-foreground mt-0.5">{r.notes}</span>}</span>
                     <span className="text-xs font-mono">TP {Number(r.target)}% · SL {Number(r.stop)}% · R:R {(Number(r.target) / Number(r.stop) || 0).toFixed(2)}</span>
                     <span className={r.outcome === 'Win' ? 'positive' : 'negative'}>{r.outcome.toUpperCase()}</span>
-                    <Button size="icon" variant="ghost" title="Edit" onClick={() => startEdit(r)}><Pencil /></Button>
-                    <Button size="icon" variant="ghost" title="Delete" onClick={() => { if (window.confirm('Delete this backtest?')) remove.mutate(r.id); }}><Trash2 /></Button>
+                    <Button size="icon" variant="ghost" title="Edit" onClick={e => { e.stopPropagation(); startEdit(r); }}><Pencil /></Button>
+                    <Button size="icon" variant="ghost" title="Delete" onClick={e => { e.stopPropagation(); if (window.confirm('Delete this backtest?')) remove.mutate(r.id); }}><Trash2 /></Button>
                   </>
                 )}
               </div>))}</div> : <div className="empty">No backtests yet. Upload your first screenshot above.</div>}
           </>}
         </div>
       </section>
+      <BacktestDialog row={viewing} onClose={() => setViewing(null)} onEdit={r => { setViewing(null); startEdit(r); }} onDelete={id => { setViewing(null); remove.mutate(id); }} />
     </>
   );
 }
