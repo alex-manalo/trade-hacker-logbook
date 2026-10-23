@@ -130,7 +130,7 @@ export function Backtest({ userId, onSignIn, period = 'All time' }: { userId: st
   const [form, setForm] = useState({ target: '', stop: '', strategy: '', outcome: 'Win', notes: '' });
   const [filter, setFilter] = useState('All');
   const [editing, setEditing] = useState<string | null>(null);
-  const [viewing, setViewing] = useState<BacktestRow | null>(null);
+  const [viewingId, setViewingId] = useState<string | null>(null);
   const [draft, setDraft] = useState({ target: '', stop: '', strategy: '', outcome: 'Win', notes: '' });
 
   const list = useBacktests(userId);
@@ -243,7 +243,7 @@ export function Backtest({ userId, onSignIn, period = 'All time' }: { userId: st
                   </div>
                 </div>
               ) : (
-                <article key={r.id} className="bt-card" role="button" tabIndex={0} title="Open backtest details" onClick={() => setViewing(r)} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setViewing(r); } }}>
+                <article key={r.id} className="bt-card" role="button" tabIndex={0} title="Open backtest details" onClick={() => setViewingId(r.id)} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setViewingId(r.id); } }}>
                   <div className="bt-shot">
                     {r.screenshot_path ? <CardShot path={r.screenshot_path} /> : <div className="bt-none"><ImagePlus className="h-5 w-5" />NO SCREENSHOT</div>}
                     <span className={`bt-badge ${win ? 'win' : 'loss'}`}>{win ? 'WIN' : 'LOSS'}</span>
@@ -264,7 +264,7 @@ export function Backtest({ userId, onSignIn, period = 'All time' }: { userId: st
           </>}
         </div>
       </section>
-      <BacktestDialog row={viewing} onClose={() => setViewing(null)} onEdit={r => { setViewing(null); startEdit(r); }} onDelete={id => { setViewing(null); remove.mutate(id); }} />
+      <BacktestDialog rows={rows} viewingId={viewingId} onClose={() => setViewingId(null)} onNavigate={setViewingId} onEdit={r => { setViewingId(null); startEdit(r); }} onDelete={id => { setViewingId(null); remove.mutate(id); }} />
     </>
   );
 }
