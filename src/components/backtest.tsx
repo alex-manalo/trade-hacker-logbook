@@ -75,10 +75,11 @@ function BacktestDialog({ rows, viewingId, onClose, onNavigate, onEdit, onDelete
   const row = index >= 0 ? rows[index] : null;
   useEffect(() => {
     if (!row) return;
-    const h = (e: KeyboardEvent) => {
-      if (e.key === 'ArrowRight' && index < rows.length - 1) onNavigate(rows[index + 1].id);
-      if (e.key === 'ArrowLeft' && index > 0) onNavigate(rows[index - 1].id);
-    };
+      const prev = rows[index - 1]; const next = rows[index + 1];
+      const h = (e: KeyboardEvent) => {
+        if (e.key === 'ArrowRight' && next) onNavigate(next.id);
+        if (e.key === 'ArrowLeft' && prev) onNavigate(prev.id);
+      };
     window.addEventListener('keydown', h);
     return () => window.removeEventListener('keydown', h);
   }, [row, index, rows, onNavigate]);
@@ -111,9 +112,9 @@ function BacktestDialog({ rows, viewingId, onClose, onNavigate, onEdit, onDelete
           </aside>
         </div>
         <div className="flex items-center justify-between border-t border-border px-4 py-2 font-mono text-xs">
-          <Button variant="ghost" size="sm" disabled={index <= 0} onClick={() => onNavigate(rows[index - 1].id)}><ChevronLeft />PREV</Button>
+          <Button variant="ghost" size="sm" disabled={index <= 0} onClick={() => { const prev = rows[index - 1]; if (prev) onNavigate(prev.id); }}><ChevronLeft />PREV</Button>
           <span className="text-muted-foreground">{index + 1} / {rows.length}</span>
-          <Button variant="ghost" size="sm" disabled={index >= rows.length - 1} onClick={() => onNavigate(rows[index + 1].id)}>NEXT<ChevronRight /></Button>
+          <Button variant="ghost" size="sm" disabled={index >= rows.length - 1} onClick={() => { const next = rows[index + 1]; if (next) onNavigate(next.id); }}>NEXT<ChevronRight /></Button>
         </div>
       </DialogContent>
     </Dialog>
