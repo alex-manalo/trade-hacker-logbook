@@ -23,3 +23,9 @@ export function setStrategies(list: string[]) {
 export function useStrategies() {
   return useSyncExternalStore(l => { listeners.add(l); return () => listeners.delete(l); }, read, () => defaultStrategies);
 }
+
+// A record may carry several strategies; older rows only have the single `strategy` label.
+export function strategiesOf(r: { strategy: string; strategies?: string[] | null }): string[] {
+  return r.strategies?.length ? r.strategies : r.strategy ? [r.strategy] : [];
+}
+export const joinStrategies = (list: string[]) => list.join(' + ');
