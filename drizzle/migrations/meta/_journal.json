@@ -29,6 +29,13 @@
       "when": 1792607621285,
       "tag": "0003_add_backtest_notes",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1793656910259,
+      "tag": "0004_multi_strategies",
+      "breakpoints": true
     }
   ]
 }

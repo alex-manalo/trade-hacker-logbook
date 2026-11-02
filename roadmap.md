@@ -8,3 +8,4 @@
 - [x] "Most winnable strategy" card on Backtest page.
 - [x] Notes field per backtest entry (create + edit).
 - [x] Backtest entries shown as screenshot-led cards (calendar view removed).
+- [x] Multiple strategies per trade and per backtest (counted fully in each).

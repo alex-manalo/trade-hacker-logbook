@@ -13,3 +13,11 @@ describe('Most winnable strategy', () => {
   });
   it('returns nothing without backtests', () => expect(rankStrategies([])).toEqual([]));
 });
+describe('Multiple strategies per backtest', () => {
+  it('counts a backtest fully in each of its strategies', () => {
+    const multi = { ...row('Breakout + Pullback', 'Win'), strategies: ['Breakout', 'Pullback'] };
+    const r = rankStrategies([multi, row('Breakout', 'Loss')]);
+    expect(r.find(x => x.s === 'Pullback')).toMatchObject({ n: 1, wins: 1 });
+    expect(r.find(x => x.s === 'Breakout')).toMatchObject({ n: 2, wins: 1 });
+  });
+});
