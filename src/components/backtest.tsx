@@ -7,10 +7,11 @@ import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
-import { useStrategies } from '@/lib/strategies';
+import { joinStrategies, strategiesOf, useStrategies } from '@/lib/strategies';
+import { StrategyPicker } from '@/components/strategy-picker';
 import { extractBacktest } from '@/lib/backtest.functions';
 
-export type BacktestRow = { id: string; strategy: string; target: number; stop: number; outcome: string; notes: string; screenshot_path: string | null; created_at: string };
+export type BacktestRow = { id: string; strategy: string; strategies?: string[] | null; target: number; stop: number; outcome: string; notes: string; screenshot_path: string | null; created_at: string };
 
 export function useBacktests(userId: string | undefined) {
   return useQuery({
@@ -42,7 +43,7 @@ export function backtestStats(rows: BacktestRow[]) {
 
 // Strategies ranked by win rate; ties go to the larger sample, then to total R.
 export function rankStrategies(rows: BacktestRow[]) {
-  return [...new Set(rows.map(r => r.strategy))].map(s => { const st = backtestStats(rows.filter(r => r.strategy === s)); return { s, n: st.count, wins: st.wins, rate: st.winRate, total: st.total }; })
+  return [...new Set(rows.flatMap(strategiesOf))].map(s => { const st = backtestStats(rows.filter(r => strategiesOf(r).includes(s))); return { s, n: st.count, wins: st.wins, rate: st.winRate, total: st.total }; })
     .sort((a, b) => b.rate - a.rate || b.n - a.n || b.total - a.total);
 }
 
@@ -97,7 +98,7 @@ function BacktestDialog({ rows, viewingId, onClose, onNavigate, onEdit, onDelete
             <DialogTitle className="font-mono">Backtest record <span className={r >= 0 ? 'positive' : 'negative'}>{r >= 0 ? '+' : ''}{r.toFixed(2)}R</span></DialogTitle>
             <DialogDescription>Strategy test & outcome</DialogDescription>
             <div className="grid grid-cols-2 gap-3 text-sm font-mono">
-              <div><div className="panel-meta">STRATEGY</div>{row.strategy}</div>
+              <div><div className="panel-meta">STRATEGY</div>{joinStrategies(strategiesOf(row))}</div>
               <div><div className="panel-meta">DATE</div>{new Date(row.created_at).toLocaleDateString('en-US', { month: 'short', day: '2-digit', year: 'numeric' })}</div>
               <div><div className="panel-meta">TARGET</div>{Number(row.target)}%</div>
               <div><div className="panel-meta">STOP LOSS</div>{Number(row.stop)}%</div>
@@ -128,11 +129,11 @@ export function Backtest({ userId, onSignIn, period = 'All time' }: { userId: st
   const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<string>();
   const [reading, setReading] = useState(false);
-  const [form, setForm] = useState({ target: '', stop: '', strategy: '', outcome: 'Win', notes: '' });
+  const [form, setForm] = useState({ target: '', stop: '', strategies: [] as string[], outcome: 'Win', notes: '' });
   const [filter, setFilter] = useState('All');
   const [editing, setEditing] = useState<string | null>(null);
   const [viewingId, setViewingId] = useState<string | null>(null);
-  const [draft, setDraft] = useState({ target: '', stop: '', strategy: '', outcome: 'Win', notes: '' });
+  const [draft, setDraft] = useState({ target: '', stop: '', strategies: [] as string[], outcome: 'Win', notes: '' });
 
   const list = useBacktests(userId);
 
@@ -144,7 +145,7 @@ export function Backtest({ userId, onSignIn, period = 'All time' }: { userId: st
       const image = await new Promise<string>((res, rej) => { const r = new FileReader(); r.onload = () => res(String(r.result)); r.onerror = rej; r.readAsDataURL(f); });
       const x = await read({ data: { image } });
       setForm(p => ({ ...p, target: x.target != null ? String(x.target) : p.target, stop: x.stop != null ? String(x.stop) : p.stop, outcome: x.outcome ?? p.outcome }));
-      toast.success('Screenshot read. Check the fields, pick a strategy, then save.');
+      toast.success('Screenshot read. Check the fields, pick strategies, then save.');
     } catch (e) { toast.error(e instanceof Error ? e.message : 'Could not read the screenshot.'); }
     finally { setReading(false); }
   }
@@ -158,7 +159,8 @@ export function Backtest({ userId, onSignIn, period = 'All time' }: { userId: st
         const up = await supabase.storage.from('trade-screenshots').upload(path, file, { contentType: file.type });
         if (up.error) throw up.error; screenshot_path = path;
       }
-      const { error } = await supabase.from('backtests').insert({ user_id: userId, strategy: form.strategy || strategies[0] || 'Breakout', target: Number(form.target), stop: Number(form.stop), outcome: form.outcome, notes: form.notes, screenshot_path });
+      const picked = form.strategies.length ? form.strategies : [strategies[0] || 'Breakout'];
+      const { error } = await supabase.from('backtests').insert({ user_id: userId, strategy: joinStrategies(picked), strategies: picked, target: Number(form.target), stop: Number(form.stop), outcome: form.outcome, notes: form.notes, screenshot_path });
       if (error) throw error;
     },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['backtests'] }); toast.success('Backtest saved.'); setFile(null); setPreview(undefined); setForm(p => ({ ...p, target: '', stop: '', notes: '' })); },
@@ -169,14 +171,15 @@ export function Backtest({ userId, onSignIn, period = 'All time' }: { userId: st
     mutationFn: async (id: string) => {
       const target = Number(draft.target), stop = Number(draft.stop);
       if (!(target > 0) || !(stop > 0)) throw new Error('Target and stop loss must be greater than 0.');
-      const { error } = await supabase.from('backtests').update({ strategy: draft.strategy, target, stop, outcome: draft.outcome, notes: draft.notes }).eq('id', id);
+      if (!draft.strategies.length) throw new Error('Pick at least one strategy.');
+      const { error } = await supabase.from('backtests').update({ strategy: joinStrategies(draft.strategies), strategies: draft.strategies, target, stop, outcome: draft.outcome, notes: draft.notes }).eq('id', id);
       if (error) throw error;
     },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['backtests'] }); toast.success('Backtest updated.'); setEditing(null); },
     onError: e => toast.error(e.message),
   });
 
-  function startEdit(r: BacktestRow) { setEditing(r.id); setDraft({ target: String(Number(r.target)), stop: String(Number(r.stop)), strategy: r.strategy, outcome: r.outcome, notes: r.notes ?? '' }); }
+  function startEdit(r: BacktestRow) { setEditing(r.id); setDraft({ target: String(Number(r.target)), stop: String(Number(r.stop)), strategies: strategiesOf(r), outcome: r.outcome, notes: r.notes ?? '' }); }
 
   const remove = useMutation({
     mutationFn: async (id: string) => { const { error } = await supabase.from('backtests').delete().eq('id', id); if (error) throw error; },
@@ -185,8 +188,8 @@ export function Backtest({ userId, onSignIn, period = 'All time' }: { userId: st
   });
 
   const all = inPeriod(list.data ?? [], period);
-  const rows = all.filter(r => filter === 'All' || r.strategy === filter);
-  const filterOptions = [...new Set([...strategies, ...all.map(r => r.strategy)])];
+  const rows = all.filter(r => filter === 'All' || strategiesOf(r).includes(filter));
+  const filterOptions = [...new Set([...strategies, ...all.flatMap(strategiesOf)])];
   const wins = rows.filter(r => r.outcome === 'Win').length;
   const byStrategy = rankStrategies(all);
   const best = byStrategy[0];
@@ -201,7 +204,7 @@ export function Backtest({ userId, onSignIn, period = 'All time' }: { userId: st
           <form className="form-grid" onSubmit={e => { e.preventDefault(); if (!userId) return onSignIn(); save.mutate(); }}>
             <label className="field">Target (%)<Input type="number" step="any" min={0} required value={form.target} onChange={e => setForm({ ...form, target: e.target.value })} /></label>
             <label className="field">Stop loss (%)<Input type="number" step="any" min={0} required value={form.stop} onChange={e => setForm({ ...form, stop: e.target.value })} /></label>
-            <label className="field">Strategy<select value={form.strategy || strategies[0]} onChange={e => setForm({ ...form, strategy: e.target.value })}>{strategies.map(s => <option key={s}>{s}</option>)}</select></label>
+            <StrategyPicker value={form.strategies} onChange={v => setForm({ ...form, strategies: v })} />
             <label className="field">Result<select value={form.outcome} onChange={e => setForm({ ...form, outcome: e.target.value })}><option>Win</option><option>Loss</option></select></label>
             <label className="field full">Notes<Input placeholder="What did you test? Market, session, conditions..." value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })} /></label>
             <div className="field full flex-row justify-end"><Button disabled={save.isPending || reading}>{save.isPending ? 'Saving...' : 'Save backtest'}</Button></div>
@@ -231,7 +234,7 @@ export function Backtest({ userId, onSignIn, period = 'All time' }: { userId: st
               const win = r.outcome === 'Win';
               return editing === r.id ? (
                 <div key={r.id} className="bt-card bt-edit">
-                  <label className="field">Strategy<select aria-label="Strategy" value={draft.strategy} onChange={e => setDraft({ ...draft, strategy: e.target.value })}>{[...new Set([draft.strategy, ...strategies])].map(x => <option key={x}>{x}</option>)}</select></label>
+                  <StrategyPicker value={draft.strategies} onChange={v => setDraft({ ...draft, strategies: v })} />
                   <div className="grid grid-cols-2 gap-2">
                     <label className="field">Target (%)<Input aria-label="Target (%)" type="number" step="any" min={0} value={draft.target} onChange={e => setDraft({ ...draft, target: e.target.value })} /></label>
                     <label className="field">Stop loss (%)<Input aria-label="Stop loss (%)" type="number" step="any" min={0} value={draft.stop} onChange={e => setDraft({ ...draft, stop: e.target.value })} /></label>
@@ -251,7 +254,7 @@ export function Backtest({ userId, onSignIn, period = 'All time' }: { userId: st
                     <span className="bt-rr">R:R {rr.toFixed(2)}</span>
                   </div>
                   <div className="bt-body">
-                    <div className="bt-name"><span>{r.strategy}</span><span className="bt-date">{new Date(r.created_at).toLocaleDateString()}</span></div>
+                    <div className="bt-name"><span>{joinStrategies(strategiesOf(r))}</span><span className="bt-date">{new Date(r.created_at).toLocaleDateString()}</span></div>
                     <div className="bt-specs"><span>TP {Number(r.target)}%</span><span>SL {Number(r.stop)}%</span></div>
                     {r.notes && <p className="bt-note">{r.notes}</p>}
                   </div>
