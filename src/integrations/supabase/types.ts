@@ -22,6 +22,7 @@ export type Database = {
           outcome: string
           screenshot_path: string | null
           stop: number
+          strategies: string[]
           strategy: string
           target: number
           user_id: string
@@ -33,6 +34,7 @@ export type Database = {
           outcome: string
           screenshot_path?: string | null
           stop: number
+          strategies?: string[]
           strategy?: string
           target: number
           user_id: string
@@ -44,6 +46,7 @@ export type Database = {
           outcome?: string
           screenshot_path?: string | null
           stop?: number
+          strategies?: string[]
           strategy?: string
           target?: number
           user_id?: string
@@ -62,6 +65,7 @@ export type Database = {
           notes: string
           quantity: number
           screenshot_path: string | null
+          strategies: string[]
           strategy: string
           symbol: string
           traded_at: string
@@ -78,6 +82,7 @@ export type Database = {
           notes?: string
           quantity: number
           screenshot_path?: string | null
+          strategies?: string[]
           strategy?: string
           symbol: string
           traded_at?: string
@@ -94,6 +99,7 @@ export type Database = {
           notes?: string
           quantity?: number
           screenshot_path?: string | null
+          strategies?: string[]
           strategy?: string
           symbol?: string
           traded_at?: string
