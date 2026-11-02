@@ -5,7 +5,7 @@ import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { setStrategies, useStrategies } from '@/lib/strategies';
+import { joinStrategies, setStrategies, strategiesOf, useStrategies } from '@/lib/strategies';
 import type { Trade } from '@/lib/trades';
 
 export function StrategyEditor({ trades, userId }: { trades: Trade[]; userId?: string | undefined }) {
