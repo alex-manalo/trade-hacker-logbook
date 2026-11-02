@@ -21,10 +21,18 @@ export function StrategyEditor({ trades, userId }: { trades: Trade[]; userId?: s
     if (list.includes(to)) return toast.error('A strategy with that name already exists.');
     setStrategies(list.map(s => (s === from ? to : s)));
     setEditing(null);
-    if (userId && trades.some(t => t.strategy === from)) {
-      const { error } = await supabase.from('trades').update({ strategy: to }).eq('strategy', from);
-      if (error) return toast.error(error.message);
+    if (userId) {
+      for (const table of ['trades', 'backtests'] as const) {
+        const { data, error } = await supabase.from(table).select('id,strategy,strategies').or(`strategy.eq."${from}",strategies.cs.{"${from}"}`);
+        if (error) return toast.error(error.message);
+        for (const r of data ?? []) {
+          const next = [...new Set(strategiesOf(r).map(s => (s === from ? to : s)))];
+          const u = await supabase.from(table).update({ strategy: joinStrategies(next), strategies: next }).eq('id', r.id);
+          if (u.error) return toast.error(u.error.message);
+        }
+      }
       qc.invalidateQueries({ queryKey: ['trades'] });
+      qc.invalidateQueries({ queryKey: ['backtests'] });
     }
     toast.success(`Renamed to ${to}.`);
   }
