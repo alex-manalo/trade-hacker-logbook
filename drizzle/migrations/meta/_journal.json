@@ -36,6 +36,13 @@
       "when": 1793656910259,
       "tag": "0004_multi_strategies",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1793759682582,
+      "tag": "0005_create_strategies",
+      "breakpoints": true
     }
   ]
 }

@@ -5,12 +5,13 @@ import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { joinStrategies, setStrategies, strategiesOf, useStrategies } from '@/lib/strategies';
+import { addStrategy, joinStrategies, removeStrategy, renameStrategy, strategiesOf, useStrategies } from '@/lib/strategies';
 import type { Trade } from '@/lib/trades';
 
 export function StrategyEditor({ trades, userId }: { trades: Trade[]; userId?: string | undefined }) {
-  const list = useStrategies();
+  const list = useStrategies(userId);
   const qc = useQueryClient();
+  const refresh = () => qc.invalidateQueries({ queryKey: ['strategies'] });
   const [draft, setDraft] = useState('');
   const [editing, setEditing] = useState<string | null>(null);
   const [name, setName] = useState('');
@@ -19,7 +20,12 @@ export function StrategyEditor({ trades, userId }: { trades: Trade[]; userId?: s
     const to = name.trim();
     if (!to || to === from) return setEditing(null);
     if (list.includes(to)) return toast.error('A strategy with that name already exists.');
-    setStrategies(list.map(s => (s === from ? to : s)));
+    try {
+      await renameStrategy(userId, from, to);
+    } catch (e) {
+      return toast.error(e instanceof Error ? e.message : 'Could not rename the strategy.');
+    }
+    refresh();
     setEditing(null);
     if (userId) {
       for (const table of ['trades', 'backtests'] as const) {
@@ -54,16 +60,21 @@ export function StrategyEditor({ trades, userId }: { trades: Trade[]; userId?: s
                 <>
                   <span className="flex-1">{s} <span className="panel-meta ml-2">{used} TRADES</span></span>
                   <Button size="icon" variant="ghost" title="Rename" onClick={() => { setEditing(s); setName(s); }}><Pencil /></Button>
-                  <Button size="icon" variant="ghost" title="Remove" onClick={() => {
+                  <Button size="icon" variant="ghost" title="Remove" onClick={async () => {
                     if (used && !window.confirm(`${used} trade(s) use "${s}". They keep the label, but it will leave this list. Remove?`)) return;
-                    setStrategies(list.filter(x => x !== s));
+                    try {
+                      await removeStrategy(userId, s);
+                      refresh();
+                    } catch (e) {
+                      toast.error(e instanceof Error ? e.message : 'Could not remove the strategy.');
+                    }
                   }}><Trash2 /></Button>
                 </>
               )}
             </div>
           );
         })}
-        <form className="flex gap-2 pt-2" onSubmit={e => { e.preventDefault(); if (!draft.trim()) return; if (list.includes(draft.trim())) { toast.error("Already in your list."); return; } setStrategies([...list, draft]); setDraft(""); }}>
+        <form className="flex gap-2 pt-2" onSubmit={async e => { e.preventDefault(); if (!draft.trim()) return; if (list.includes(draft.trim())) { toast.error("Already in your list."); return; } try { await addStrategy(userId, draft); refresh(); setDraft(""); } catch (err) { toast.error(err instanceof Error ? err.message : 'Could not add the strategy.'); } }}>
           <Input placeholder="New strategy name" value={draft} onChange={e => setDraft(e.target.value)} />
           <Button type="submit"><Plus />Add</Button>
         </form>

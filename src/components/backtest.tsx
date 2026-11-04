@@ -121,7 +121,7 @@ function BacktestDialog({ rows, viewingId, onClose, onNavigate, onEdit, onDelete
 }
 
 export function Backtest({ userId, onSignIn, period = 'All time' }: { userId: string | undefined; onSignIn: () => void; period?: string }) {
-  const strategies = useStrategies();
+  const strategies = useStrategies(userId);
   const qc = useQueryClient();
   const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<string>();
@@ -204,7 +204,7 @@ export function Backtest({ userId, onSignIn, period = 'All time' }: { userId: st
           <form className="form-grid" onSubmit={e => { e.preventDefault(); if (!userId) return onSignIn(); save.mutate(); }}>
             <label className="field">Target (%)<Input type="number" step="any" min={0} required value={form.target} onChange={e => setForm({ ...form, target: e.target.value })} /></label>
             <label className="field">Stop loss (%)<Input type="number" step="any" min={0} required value={form.stop} onChange={e => setForm({ ...form, stop: e.target.value })} /></label>
-            <StrategyPicker value={form.strategies} onChange={v => setForm({ ...form, strategies: v })} />
+            <StrategyPicker value={form.strategies} onChange={v => setForm({ ...form, strategies: v })} userId={userId} />
             <label className="field">Result<select value={form.outcome} onChange={e => setForm({ ...form, outcome: e.target.value })}><option>Win</option><option>Loss</option></select></label>
             <label className="field full">Notes<Input placeholder="What did you test? Market, session, conditions..." value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })} /></label>
             <div className="field full flex-row justify-end"><Button disabled={save.isPending}>{save.isPending ? 'Saving...' : 'Save backtest'}</Button></div>
@@ -235,7 +235,7 @@ export function Backtest({ userId, onSignIn, period = 'All time' }: { userId: st
               const win = r.outcome === 'Win';
               return editing === r.id ? (
                 <div key={r.id} className="bt-card bt-edit">
-                  <StrategyPicker value={draft.strategies} onChange={v => setDraft({ ...draft, strategies: v })} />
+                  <StrategyPicker value={draft.strategies} onChange={v => setDraft({ ...draft, strategies: v })} userId={userId} />
                   <div className="grid grid-cols-2 gap-2">
                     <label className="field">Target (%)<Input aria-label="Target (%)" type="number" step="any" min={0} value={draft.target} onChange={e => setDraft({ ...draft, target: e.target.value })} /></label>
                     <label className="field">Stop loss (%)<Input aria-label="Stop loss (%)" type="number" step="any" min={0} value={draft.stop} onChange={e => setDraft({ ...draft, stop: e.target.value })} /></label>

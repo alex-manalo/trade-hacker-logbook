@@ -1,8 +1,8 @@
 import { Check } from 'lucide-react';
 import { useStrategies } from '@/lib/strategies';
 
-export function StrategyPicker({ value, onChange, label = 'Strategies' }: { value: string[]; onChange: (v: string[]) => void; label?: string }) {
-  const list = useStrategies();
+export function StrategyPicker({ value, onChange, label = 'Strategies', userId }: { value: string[]; onChange: (v: string[]) => void; label?: string; userId?: string }) {
+  const list = useStrategies(userId);
   const options = [...new Set([...list, ...value])];
   return (
     <div className="field full">
