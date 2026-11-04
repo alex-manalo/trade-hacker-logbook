@@ -125,7 +125,7 @@ export function Backtest({ userId, onSignIn, period = 'All time' }: { userId: st
   const qc = useQueryClient();
   const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<string>();
-  const [form, setForm] = useState({ target: '', stop: '', strategies: [] as string[], outcome: 'Win', notes: '' });
+  const [form, setForm] = useState({ target: '2', stop: '1', strategies: [] as string[], outcome: 'Win', notes: '' });
   const [filter, setFilter] = useState('All');
   const [editing, setEditing] = useState<string | null>(null);
   const [viewingId, setViewingId] = useState<string | null>(null);
@@ -156,7 +156,7 @@ export function Backtest({ userId, onSignIn, period = 'All time' }: { userId: st
       const { error } = await supabase.from('backtests').insert({ user_id: userId, strategy: joinStrategies(picked), strategies: picked, target: Number(form.target), stop: Number(form.stop), outcome: form.outcome, notes: form.notes, screenshot_path });
       if (error) throw error;
     },
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['backtests'] }); toast.success('Backtest saved.'); setFile(null); setPreview(undefined); setForm(p => ({ ...p, target: '', stop: '', notes: '' })); },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['backtests'] }); toast.success('Backtest saved.'); setFile(null); setPreview(undefined); setForm(p => ({ ...p, target: '2', stop: '1', notes: '' })); },
     onError: e => toast.error(e.message),
   });
 
@@ -177,6 +177,13 @@ export function Backtest({ userId, onSignIn, period = 'All time' }: { userId: st
   const remove = useMutation({
     mutationFn: async (id: string) => { const { error } = await supabase.from('backtests').delete().eq('id', id); if (error) throw error; },
     onSuccess: () => qc.invalidateQueries({ queryKey: ['backtests'] }),
+    onError: e => toast.error(e.message),
+  });
+
+  const orphans = (list.data ?? []).filter(r => !strategiesOf(r).some(s => strategies.includes(s)));
+  const purge = useMutation({
+    mutationFn: async () => { const { error } = await supabase.from('backtests').delete().in('id', orphans.map(r => r.id)); if (error) throw error; return orphans.length; },
+    onSuccess: n => { qc.invalidateQueries({ queryKey: ['backtests'] }); toast.success(`${n} backtest(s) deleted.`); },
     onError: e => toast.error(e.message),
   });
 
@@ -210,6 +217,7 @@ export function Backtest({ userId, onSignIn, period = 'All time' }: { userId: st
         <div className="p-5 space-y-4">
           {!userId ? <div className="empty">Sign in to log and view your backtests.</div> : <>
             <div className="text-sm font-mono">{rows.length} tests · <span className="positive">{wins} wins</span> · <span className="negative">{rows.length - wins} losses</span> · win rate {rows.length ? ((wins / rows.length) * 100).toFixed(1) : '0.0'}%</div>
+            {orphans.length > 0 && <div className="flex flex-wrap items-center justify-between gap-2 rounded border border-border p-3 text-sm font-mono"><span>{orphans.length} {orphans.length === 1 ? 'backtest uses' : 'backtests use'} strategies not in your list</span><Button size="sm" variant="outline" disabled={purge.isPending} onClick={() => { if (window.confirm(`Delete ${orphans.length} backtest(s) whose strategies aren't in your list?`)) purge.mutate(); }}><Trash2 />Delete them</Button></div>}
             {best && (
               <div className="rounded border border-primary/40 bg-primary/5 p-4 space-y-2" aria-label="Most winnable strategy">
                 <div className="flex items-center gap-2 text-xs font-mono uppercase tracking-wider text-muted-foreground"><Trophy className="h-4 w-4 text-primary" />Most winnable strategy</div>
