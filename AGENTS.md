@@ -14,3 +14,5 @@
 - The journal uses a client-only root route with Query loader caching because private sessions are browser-held; signed-out visitors see explicitly labeled illustrative data.
 - Trade calculations live in the shared trades module, so summaries, charts and exports use the same net-of-fees P&L.
 - Shared theme styling lives in the global design system and UI controls use the existing design components.
+
+- Screenshot uploads are attachment-only browser flows; no image-extraction server functions are exposed, avoiding unused AI processing.

@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useServerFn } from '@tanstack/react-start';
 import { Check, ChevronLeft, ChevronRight, FlaskConical, ImagePlus, Pencil, Trash2, Trophy, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
@@ -9,7 +8,6 @@ import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/compone
 import { Input } from '@/components/ui/input';
 import { joinStrategies, strategiesOf, useStrategies } from '@/lib/strategies';
 import { StrategyPicker } from '@/components/strategy-picker';
-import { extractBacktest } from '@/lib/backtest.functions';
 
 export type BacktestRow = { id: string; strategy: string; strategies?: string[] | null; target: number; stop: number; outcome: string; notes: string; screenshot_path: string | null; created_at: string };
 
@@ -125,10 +123,8 @@ function BacktestDialog({ rows, viewingId, onClose, onNavigate, onEdit, onDelete
 export function Backtest({ userId, onSignIn, period = 'All time' }: { userId: string | undefined; onSignIn: () => void; period?: string }) {
   const strategies = useStrategies();
   const qc = useQueryClient();
-  const read = useServerFn(extractBacktest);
   const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<string>();
-  const [reading, setReading] = useState(false);
   const [form, setForm] = useState({ target: '', stop: '', strategies: [] as string[], outcome: 'Win', notes: '' });
   const [filter, setFilter] = useState('All');
   const [editing, setEditing] = useState<string | null>(null);
@@ -140,14 +136,11 @@ export function Backtest({ userId, onSignIn, period = 'All time' }: { userId: st
   async function pick(f?: File) {
     if (!f) return;
     if (!userId) return onSignIn();
-    setFile(f); setPreview(URL.createObjectURL(f)); setReading(true);
-    try {
-      const image = await new Promise<string>((res, rej) => { const r = new FileReader(); r.onload = () => res(String(r.result)); r.onerror = rej; r.readAsDataURL(f); });
-      const x = await read({ data: { image } });
-      setForm(p => ({ ...p, target: x.target != null ? String(x.target) : p.target, stop: x.stop != null ? String(x.stop) : p.stop, outcome: x.outcome ?? p.outcome }));
-      toast.success('Screenshot read. Check the fields, pick strategies, then save.');
-    } catch (e) { toast.error(e instanceof Error ? e.message : 'Could not read the screenshot.'); }
-    finally { setReading(false); }
+    setFile(f);
+    const reader = new FileReader();
+    reader.onload = () => setPreview(String(reader.result));
+    reader.onerror = () => toast.error('Could not preview the screenshot.');
+    reader.readAsDataURL(f);
   }
 
   const save = useMutation({
@@ -197,17 +190,17 @@ export function Backtest({ userId, onSignIn, period = 'All time' }: { userId: st
   return (
     <>
       <section className="panel">
-        <div className="panel-head"><div className="panel-title"><FlaskConical />Log a backtest</div><span className="panel-meta">UPLOAD & AUTO-FILL</span></div>
+        <div className="panel-head"><div className="panel-title"><FlaskConical />Log a backtest</div></div>
         <div className="p-5 space-y-4">
           {preview && <img src={preview} alt="Backtest screenshot preview" className="max-h-64 w-full rounded border border-border object-contain bg-background" />}
-          <Button type="button" variant="outline" disabled={reading} asChild><label className="cursor-pointer"><ImagePlus />{reading ? 'Reading screenshot...' : preview ? 'Replace screenshot' : 'Upload backtest screenshot'}<input type="file" accept="image/*" className="hidden" disabled={reading} onChange={e => { pick(e.target.files?.[0]); e.target.value = ''; }} /></label></Button>
+          <Button type="button" variant="outline" asChild><label className="cursor-pointer"><ImagePlus />{preview ? 'Replace screenshot' : 'Upload backtest screenshot'}<input type="file" accept="image/*" className="hidden" onChange={e => { pick(e.target.files?.[0]); e.target.value = ''; }} /></label></Button>
           <form className="form-grid" onSubmit={e => { e.preventDefault(); if (!userId) return onSignIn(); save.mutate(); }}>
             <label className="field">Target (%)<Input type="number" step="any" min={0} required value={form.target} onChange={e => setForm({ ...form, target: e.target.value })} /></label>
             <label className="field">Stop loss (%)<Input type="number" step="any" min={0} required value={form.stop} onChange={e => setForm({ ...form, stop: e.target.value })} /></label>
             <StrategyPicker value={form.strategies} onChange={v => setForm({ ...form, strategies: v })} />
             <label className="field">Result<select value={form.outcome} onChange={e => setForm({ ...form, outcome: e.target.value })}><option>Win</option><option>Loss</option></select></label>
             <label className="field full">Notes<Input placeholder="What did you test? Market, session, conditions..." value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })} /></label>
-            <div className="field full flex-row justify-end"><Button disabled={save.isPending || reading}>{save.isPending ? 'Saving...' : 'Save backtest'}</Button></div>
+            <div className="field full flex-row justify-end"><Button disabled={save.isPending}>{save.isPending ? 'Saving...' : 'Save backtest'}</Button></div>
           </form>
         </div>
       </section>
