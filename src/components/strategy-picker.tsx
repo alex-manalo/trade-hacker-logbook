@@ -1,7 +1,7 @@
 import { Check } from 'lucide-react';
 import { useStrategies } from '@/lib/strategies';
 
-export function StrategyPicker({ value, onChange, label = 'Strategies', userId }: { value: string[]; onChange: (v: string[]) => void; label?: string; userId?: string }) {
+export function StrategyPicker({ value, onChange, label = 'Strategies', userId }: { value: string[]; onChange: (v: string[]) => void; label?: string; userId?: string | undefined }) {
   const list = useStrategies(userId);
   const options = [...new Set([...list, ...value])];
   return (
