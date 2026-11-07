@@ -127,6 +127,7 @@ export function Backtest({ userId, onSignIn, period = 'All time' }: { userId: st
   const [preview, setPreview] = useState<string>();
   const [form, setForm] = useState({ target: '2', stop: '1', strategies: [] as string[], outcome: 'Win', notes: '' });
   const [filter, setFilter] = useState('All');
+  const [resultFilter, setResultFilter] = useState('All');
   const [editing, setEditing] = useState<string | null>(null);
   const [viewingId, setViewingId] = useState<string | null>(null);
   const [draft, setDraft] = useState({ target: '', stop: '', strategies: [] as string[], outcome: 'Win', notes: '' });
@@ -188,7 +189,7 @@ export function Backtest({ userId, onSignIn, period = 'All time' }: { userId: st
   });
 
   const all = inPeriod(list.data ?? [], period);
-  const rows = all.filter(r => filter === 'All' || strategiesOf(r).includes(filter));
+  const rows = all.filter(r => (filter === 'All' || strategiesOf(r).includes(filter)) && (resultFilter === 'All' || r.outcome === resultFilter));
   const filterOptions = [...new Set([...strategies, ...all.flatMap(strategiesOf)])];
   const wins = rows.filter(r => r.outcome === 'Win').length;
   const byStrategy = rankStrategies(all);
@@ -213,7 +214,7 @@ export function Backtest({ userId, onSignIn, period = 'All time' }: { userId: st
       </section>
       <section className="panel">
         <div className="panel-head"><div className="panel-title"><FlaskConical />Backtest results</div>
-          <select aria-label="Filter by strategy" value={filter} onChange={e => setFilter(e.target.value)}><option>All</option>{filterOptions.map(s => <option key={s}>{s}</option>)}</select></div>
+          <div className="flex gap-2"><select aria-label="Filter by strategy" value={filter} onChange={e => setFilter(e.target.value)}><option>All</option>{filterOptions.map(s => <option key={s}>{s}</option>)}</select><select aria-label="Filter by result" value={resultFilter} onChange={e => setResultFilter(e.target.value)}><option>All</option><option>Win</option><option>Loss</option></select></div></div>
         <div className="p-5 space-y-4">
           {!userId ? <div className="empty">Sign in to log and view your backtests.</div> : <>
             <div className="text-sm font-mono">{rows.length} tests · <span className="positive">{wins} wins</span> · <span className="negative">{rows.length - wins} losses</span> · win rate {rows.length ? ((wins / rows.length) * 100).toFixed(1) : '0.0'}%</div>
