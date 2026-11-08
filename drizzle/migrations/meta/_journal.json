@@ -43,6 +43,13 @@
       "when": 1793759682582,
       "tag": "0005_create_strategies",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1794111269145,
+      "tag": "0006_add_timeframe_columns",
+      "breakpoints": true
     }
   ]
 }

@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 
 export const defaultStrategies = ['Breakout', 'Pullback', 'Reversal', 'Trend following'];
+export const TIMEFRAMES = ['1min=15min', '15min=4H'] as const;
 const KEY = 'zero-strategies';
 
 // Signed-out visitors get a browser-local list; signed-in users read/write the database.

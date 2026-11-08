@@ -7,10 +7,10 @@ import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { joinStrategies, strategiesOf, useStrategies } from '@/lib/strategies';
+import { joinStrategies, strategiesOf, useStrategies, TIMEFRAMES } from '@/lib/strategies';
 import { StrategyPicker } from '@/components/strategy-picker';
 
-export type BacktestRow = { id: string; strategy: string; strategies?: string[] | null; target: number; stop: number; outcome: string; notes: string; screenshot_path: string | null; created_at: string };
+export type BacktestRow = { id: string; strategy: string; strategies?: string[] | null; target: number; stop: number; outcome: string; timeframe?: string | null; notes: string; screenshot_path: string | null; created_at: string };
 
 export function useBacktests(userId: string | undefined) {
   return useQuery({
@@ -102,6 +102,7 @@ function BacktestDialog({ rows, viewingId, onClose, onNavigate, onEdit, onDelete
               <div><div className="panel-meta">TARGET</div>{Number(row.target)}%</div>
               <div><div className="panel-meta">STOP LOSS</div>{Number(row.stop)}%</div>
               <div><div className="panel-meta">RISK : REWARD</div>{rr.toFixed(2)}</div>
+              <div><div className="panel-meta">TIMEFRAME</div>{row.timeframe ?? '—'}</div>
               <div><div className="panel-meta">RESULT</div><span className={row.outcome === 'Win' ? 'positive' : 'negative'}>{row.outcome.toUpperCase()}</span></div>
             </div>
             {row.notes && <div><div className="panel-meta">NOTES</div><p className="text-sm text-muted-foreground whitespace-pre-wrap">{row.notes}</p></div>}
@@ -126,12 +127,13 @@ export function Backtest({ userId, onSignIn, period = 'All time' }: { userId: st
   const qc = useQueryClient();
   const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<string>();
-  const [form, setForm] = useState({ target: '2', stop: '1', strategies: [] as string[], outcome: 'Win', notes: '' });
+  const [form, setForm] = useState({ target: '2', stop: '1', strategies: [] as string[], outcome: 'Win', timeframe: TIMEFRAMES[0] as string, notes: '' });
   const [filter, setFilter] = useState('All');
   const [resultFilter, setResultFilter] = useState('All');
+  const [timeframeFilter, setTimeframeFilter] = useState('All');
   const [editing, setEditing] = useState<string | null>(null);
   const [viewingId, setViewingId] = useState<string | null>(null);
-  const [draft, setDraft] = useState({ target: '', stop: '', strategies: [] as string[], outcome: 'Win', notes: '' });
+  const [draft, setDraft] = useState({ target: '', stop: '', strategies: [] as string[], outcome: 'Win', timeframe: TIMEFRAMES[0] as string, notes: '' });
 
   const list = useBacktests(userId);
 
@@ -155,7 +157,7 @@ export function Backtest({ userId, onSignIn, period = 'All time' }: { userId: st
         if (up.error) throw up.error; screenshot_path = path;
       }
       const picked = form.strategies.length ? form.strategies : [strategies[0] || 'Breakout'];
-      const { error } = await supabase.from('backtests').insert({ user_id: userId, strategy: joinStrategies(picked), strategies: picked, target: Number(form.target), stop: Number(form.stop), outcome: form.outcome, notes: form.notes, screenshot_path });
+      const { error } = await supabase.from('backtests').insert({ user_id: userId, strategy: joinStrategies(picked), strategies: picked, target: Number(form.target), stop: Number(form.stop), outcome: form.outcome, timeframe: form.timeframe, notes: form.notes, screenshot_path });
       if (error) throw error;
     },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['backtests'] }); toast.success('Backtest saved.'); setFile(null); setPreview(undefined); setForm(p => ({ ...p, target: '2', stop: '1', notes: '' })); },
@@ -167,14 +169,14 @@ export function Backtest({ userId, onSignIn, period = 'All time' }: { userId: st
       const target = Number(draft.target), stop = Number(draft.stop);
       if (!(target > 0) || !(stop > 0)) throw new Error('Target and stop loss must be greater than 0.');
       if (!draft.strategies.length) throw new Error('Pick at least one strategy.');
-      const { error } = await supabase.from('backtests').update({ strategy: joinStrategies(draft.strategies), strategies: draft.strategies, target, stop, outcome: draft.outcome, notes: draft.notes }).eq('id', id);
+      const { error } = await supabase.from('backtests').update({ strategy: joinStrategies(draft.strategies), strategies: draft.strategies, target, stop, outcome: draft.outcome, timeframe: draft.timeframe, notes: draft.notes }).eq('id', id);
       if (error) throw error;
     },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['backtests'] }); toast.success('Backtest updated.'); setEditing(null); },
     onError: e => toast.error(e.message),
   });
 
-  function startEdit(r: BacktestRow) { setEditing(r.id); setDraft({ target: String(Number(r.target)), stop: String(Number(r.stop)), strategies: strategiesOf(r), outcome: r.outcome, notes: r.notes ?? '' }); }
+  function startEdit(r: BacktestRow) { setEditing(r.id); setDraft({ target: String(Number(r.target)), stop: String(Number(r.stop)), strategies: strategiesOf(r), outcome: r.outcome, timeframe: r.timeframe ?? TIMEFRAMES[0], notes: r.notes ?? '' }); }
 
   const remove = useMutation({
     mutationFn: async (id: string) => { const { error } = await supabase.from('backtests').delete().eq('id', id); if (error) throw error; },
@@ -190,7 +192,7 @@ export function Backtest({ userId, onSignIn, period = 'All time' }: { userId: st
   });
 
   const all = inPeriod(list.data ?? [], period);
-  const rows = all.filter(r => (filter === 'All' || strategiesOf(r).includes(filter)) && (resultFilter === 'All' || r.outcome === resultFilter));
+  const rows = all.filter(r => (filter === 'All' || strategiesOf(r).includes(filter)) && (resultFilter === 'All' || r.outcome === resultFilter) && (timeframeFilter === 'All' || r.timeframe === timeframeFilter));
   const filterOptions = [...new Set([...strategies, ...all.flatMap(strategiesOf)])];
   const wins = rows.filter(r => r.outcome === 'Win').length;
   const byStrategy = rankStrategies(all);
@@ -208,6 +210,7 @@ export function Backtest({ userId, onSignIn, period = 'All time' }: { userId: st
             <label className="field">Stop loss (%)<Input type="number" step="any" min={0} required value={form.stop} onChange={e => setForm({ ...form, stop: e.target.value })} /></label>
             <StrategyPicker value={form.strategies} onChange={v => setForm({ ...form, strategies: v })} userId={userId} />
             <label className="field">Result<select value={form.outcome} onChange={e => setForm({ ...form, outcome: e.target.value })}><option>Win</option><option>Loss</option></select></label>
+            <label className="field">Timeframe<select value={form.timeframe} onChange={e => setForm({ ...form, timeframe: e.target.value })}>{TIMEFRAMES.map(t => <option key={t}>{t}</option>)}</select></label>
             <label className="field full">Notes<Textarea rows={3} placeholder="What did you test? Market, session, conditions..." value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })} /></label>
             <div className="field full flex-row justify-end"><Button disabled={save.isPending}>{save.isPending ? 'Saving...' : 'Save backtest'}</Button></div>
           </form>
@@ -215,7 +218,7 @@ export function Backtest({ userId, onSignIn, period = 'All time' }: { userId: st
       </section>
       <section className="panel">
         <div className="panel-head"><div className="panel-title"><FlaskConical />Backtest results</div>
-          <div className="flex gap-2"><select aria-label="Filter by strategy" value={filter} onChange={e => setFilter(e.target.value)}><option>All</option>{filterOptions.map(s => <option key={s}>{s}</option>)}</select><select aria-label="Filter by result" value={resultFilter} onChange={e => setResultFilter(e.target.value)}><option>All</option><option>Win</option><option>Loss</option></select></div></div>
+          <div className="flex gap-2"><select aria-label="Filter by strategy" value={filter} onChange={e => setFilter(e.target.value)}><option>All</option>{filterOptions.map(s => <option key={s}>{s}</option>)}</select><select aria-label="Filter by result" value={resultFilter} onChange={e => setResultFilter(e.target.value)}><option>All</option><option>Win</option><option>Loss</option></select><select aria-label="Filter by timeframe" value={timeframeFilter} onChange={e => setTimeframeFilter(e.target.value)}><option>All</option>{TIMEFRAMES.map(t => <option key={t}>{t}</option>)}</select></div></div>
         <div className="p-5 space-y-4">
           {!userId ? <div className="empty">Sign in to log and view your backtests.</div> : <>
             <div className="text-sm font-mono">{rows.length} tests · <span className="positive">{wins} wins</span> · <span className="negative">{rows.length - wins} losses</span> · win rate {rows.length ? ((wins / rows.length) * 100).toFixed(1) : '0.0'}%</div>
@@ -243,6 +246,7 @@ export function Backtest({ userId, onSignIn, period = 'All time' }: { userId: st
                     <label className="field">Stop loss (%)<Input aria-label="Stop loss (%)" type="number" step="any" min={0} value={draft.stop} onChange={e => setDraft({ ...draft, stop: e.target.value })} /></label>
                   </div>
                   <label className="field">Result<select aria-label="Result" value={draft.outcome} onChange={e => setDraft({ ...draft, outcome: e.target.value })}><option>Win</option><option>Loss</option></select></label>
+                  <label className="field">Timeframe<select aria-label="Timeframe" value={draft.timeframe} onChange={e => setDraft({ ...draft, timeframe: e.target.value })}>{TIMEFRAMES.map(t => <option key={t}>{t}</option>)}</select></label>
                   <label className="field">Notes<Textarea aria-label="Notes" rows={3} placeholder="Notes" value={draft.notes} onChange={e => setDraft({ ...draft, notes: e.target.value })} /></label>
                   <div className="flex justify-end gap-2 pt-1">
                     <Button size="sm" disabled={update.isPending} onClick={() => update.mutate(r.id)}><Check />Save</Button>
@@ -258,7 +262,7 @@ export function Backtest({ userId, onSignIn, period = 'All time' }: { userId: st
                   </div>
                   <div className="bt-body">
                     <div className="bt-name"><span>{joinStrategies(strategiesOf(r))}</span><span className="bt-date">{new Date(r.created_at).toLocaleDateString()}</span></div>
-                    <div className="bt-specs"><span>TP {Number(r.target)}%</span><span>SL {Number(r.stop)}%</span></div>
+                    <div className="bt-specs"><span>TP {Number(r.target)}%</span><span>SL {Number(r.stop)}%</span>{r.timeframe && <span>{r.timeframe}</span>}</div>
                     {r.notes && <p className="bt-note">{r.notes}</p>}
                   </div>
                   <div className="bt-foot">

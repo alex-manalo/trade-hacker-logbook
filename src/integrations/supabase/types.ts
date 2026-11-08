@@ -25,6 +25,7 @@ export type Database = {
           strategies: string[]
           strategy: string
           target: number
+          timeframe: string | null
           user_id: string
         }
         Insert: {
@@ -37,6 +38,7 @@ export type Database = {
           strategies?: string[]
           strategy?: string
           target: number
+          timeframe?: string | null
           user_id: string
         }
         Update: {
@@ -49,6 +51,7 @@ export type Database = {
           strategies?: string[]
           strategy?: string
           target?: number
+          timeframe?: string | null
           user_id?: string
         }
         Relationships: []
@@ -89,6 +92,7 @@ export type Database = {
           strategies: string[]
           strategy: string
           symbol: string
+          timeframe: string | null
           traded_at: string
           user_id: string
         }
@@ -106,6 +110,7 @@ export type Database = {
           strategies?: string[]
           strategy?: string
           symbol: string
+          timeframe?: string | null
           traded_at?: string
           user_id: string
         }
@@ -123,6 +128,7 @@ export type Database = {
           strategies?: string[]
           strategy?: string
           symbol?: string
+          timeframe?: string | null
           traded_at?: string
           user_id?: string
         }
