@@ -6,6 +6,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
 import { joinStrategies, strategiesOf, useStrategies } from '@/lib/strategies';
 import { StrategyPicker } from '@/components/strategy-picker';
 
@@ -207,7 +208,7 @@ export function Backtest({ userId, onSignIn, period = 'All time' }: { userId: st
             <label className="field">Stop loss (%)<Input type="number" step="any" min={0} required value={form.stop} onChange={e => setForm({ ...form, stop: e.target.value })} /></label>
             <StrategyPicker value={form.strategies} onChange={v => setForm({ ...form, strategies: v })} userId={userId} />
             <label className="field">Result<select value={form.outcome} onChange={e => setForm({ ...form, outcome: e.target.value })}><option>Win</option><option>Loss</option></select></label>
-            <label className="field full">Notes<Input placeholder="What did you test? Market, session, conditions..." value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })} /></label>
+            <label className="field full">Notes<Textarea rows={3} placeholder="What did you test? Market, session, conditions..." value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })} /></label>
             <div className="field full flex-row justify-end"><Button disabled={save.isPending}>{save.isPending ? 'Saving...' : 'Save backtest'}</Button></div>
           </form>
         </div>
@@ -242,7 +243,7 @@ export function Backtest({ userId, onSignIn, period = 'All time' }: { userId: st
                     <label className="field">Stop loss (%)<Input aria-label="Stop loss (%)" type="number" step="any" min={0} value={draft.stop} onChange={e => setDraft({ ...draft, stop: e.target.value })} /></label>
                   </div>
                   <label className="field">Result<select aria-label="Result" value={draft.outcome} onChange={e => setDraft({ ...draft, outcome: e.target.value })}><option>Win</option><option>Loss</option></select></label>
-                  <label className="field">Notes<Input aria-label="Notes" placeholder="Notes" value={draft.notes} onChange={e => setDraft({ ...draft, notes: e.target.value })} /></label>
+                  <label className="field">Notes<Textarea aria-label="Notes" rows={3} placeholder="Notes" value={draft.notes} onChange={e => setDraft({ ...draft, notes: e.target.value })} /></label>
                   <div className="flex justify-end gap-2 pt-1">
                     <Button size="sm" disabled={update.isPending} onClick={() => update.mutate(r.id)}><Check />Save</Button>
                     <Button size="sm" variant="ghost" onClick={() => setEditing(null)}><X />Cancel</Button>
