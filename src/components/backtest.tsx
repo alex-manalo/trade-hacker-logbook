@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Check, ChevronLeft, ChevronRight, FlaskConical, ImagePlus, Pencil, Trash2, Trophy, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
+import type { TablesUpdate } from '@/integrations/supabase/types';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
@@ -134,6 +135,8 @@ export function Backtest({ userId, onSignIn, period = 'All time' }: { userId: st
   const [editing, setEditing] = useState<string | null>(null);
   const [viewingId, setViewingId] = useState<string | null>(null);
   const [draft, setDraft] = useState({ target: '', stop: '', strategies: [] as string[], outcome: 'Win', timeframe: TIMEFRAMES[0] as string, notes: '' });
+  const [draftFile, setDraftFile] = useState<File | null>(null);
+  const [draftPreview, setDraftPreview] = useState<string>();
 
   const list = useBacktests(userId);
 
@@ -143,6 +146,17 @@ export function Backtest({ userId, onSignIn, period = 'All time' }: { userId: st
     setFile(f);
     const reader = new FileReader();
     reader.onload = () => setPreview(String(reader.result));
+    reader.onerror = () => toast.error('Could not preview the screenshot.');
+    reader.readAsDataURL(f);
+  }
+
+  async function pickDraft(f?: File) {
+    if (!f) return;
+    if (!f.type.startsWith('image/')) { toast.error('Choose an image file.'); return; }
+    if (f.size > 10 * 1024 * 1024) { toast.error('Image must be under 10MB.'); return; }
+    setDraftFile(f);
+    const reader = new FileReader();
+    reader.onload = () => setDraftPreview(String(reader.result));
     reader.onerror = () => toast.error('Could not preview the screenshot.');
     reader.readAsDataURL(f);
   }
@@ -169,14 +183,21 @@ export function Backtest({ userId, onSignIn, period = 'All time' }: { userId: st
       const target = Number(draft.target), stop = Number(draft.stop);
       if (!(target > 0) || !(stop > 0)) throw new Error('Target and stop loss must be greater than 0.');
       if (!draft.strategies.length) throw new Error('Pick at least one strategy.');
-      const { error } = await supabase.from('backtests').update({ strategy: joinStrategies(draft.strategies), strategies: draft.strategies, target, stop, outcome: draft.outcome, timeframe: draft.timeframe, notes: draft.notes }).eq('id', id);
+      const values: TablesUpdate<'backtests'> = { strategy: joinStrategies(draft.strategies), strategies: draft.strategies, target, stop, outcome: draft.outcome, timeframe: draft.timeframe, notes: draft.notes };
+      if (draftFile) {
+        const path = `${userId}/backtest-${crypto.randomUUID()}.${draftFile.name.split('.').pop() || 'png'}`;
+        const up = await supabase.storage.from('trade-screenshots').upload(path, draftFile, { contentType: draftFile.type });
+        if (up.error) throw up.error;
+        values.screenshot_path = path;
+      }
+      const { error } = await supabase.from('backtests').update(values).eq('id', id);
       if (error) throw error;
     },
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['backtests'] }); toast.success('Backtest updated.'); setEditing(null); },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['backtests'] }); toast.success('Backtest updated.'); setEditing(null); setDraftFile(null); setDraftPreview(undefined); },
     onError: e => toast.error(e.message),
   });
 
-  function startEdit(r: BacktestRow) { setEditing(r.id); setDraft({ target: String(Number(r.target)), stop: String(Number(r.stop)), strategies: strategiesOf(r), outcome: r.outcome, timeframe: r.timeframe ?? TIMEFRAMES[0], notes: r.notes ?? '' }); }
+  function startEdit(r: BacktestRow) { setEditing(r.id); setDraftFile(null); setDraftPreview(undefined); setDraft({ target: String(Number(r.target)), stop: String(Number(r.stop)), strategies: strategiesOf(r), outcome: r.outcome, timeframe: r.timeframe ?? TIMEFRAMES[0], notes: r.notes ?? '' }); }
 
   const remove = useMutation({
     mutationFn: async (id: string) => { const { error } = await supabase.from('backtests').delete().eq('id', id); if (error) throw error; },
@@ -240,6 +261,11 @@ export function Backtest({ userId, onSignIn, period = 'All time' }: { userId: st
               const win = r.outcome === 'Win';
               return editing === r.id ? (
                 <div key={r.id} className="bt-card bt-edit">
+                  <div className="field">
+                    Screenshot
+                    {draftPreview ? <img src={draftPreview} alt="Backtest screenshot preview" className="max-h-40 w-full rounded border border-border object-contain bg-background" /> : r.screenshot_path ? <CardShot path={r.screenshot_path} /> : <div className="text-xs text-muted-foreground">No screenshot attached.</div>}
+                    <Button type="button" variant="outline" size="sm" asChild><label className="cursor-pointer"><ImagePlus />{draftPreview || r.screenshot_path ? 'Replace screenshot' : 'Attach screenshot'}<input type="file" accept="image/*" className="hidden" onChange={e => { pickDraft(e.target.files?.[0]); e.target.value = ''; }} /></label></Button>
+                  </div>
                   <StrategyPicker value={draft.strategies} onChange={v => setDraft({ ...draft, strategies: v })} userId={userId} />
                   <div className="grid grid-cols-2 gap-2">
                     <label className="field">Target (%)<Input aria-label="Target (%)" type="number" step="any" min={0} value={draft.target} onChange={e => setDraft({ ...draft, target: e.target.value })} /></label>
@@ -250,7 +276,7 @@ export function Backtest({ userId, onSignIn, period = 'All time' }: { userId: st
                   <label className="field">Notes<Textarea aria-label="Notes" rows={3} placeholder="Notes" value={draft.notes} onChange={e => setDraft({ ...draft, notes: e.target.value })} /></label>
                   <div className="flex justify-end gap-2 pt-1">
                     <Button size="sm" disabled={update.isPending} onClick={() => update.mutate(r.id)}><Check />Save</Button>
-                    <Button size="sm" variant="ghost" onClick={() => setEditing(null)}><X />Cancel</Button>
+                    <Button size="sm" variant="ghost" onClick={() => { setEditing(null); setDraftFile(null); setDraftPreview(undefined); }}><X />Cancel</Button>
                   </div>
                 </div>
               ) : (
