@@ -16,3 +16,4 @@
 - Shared theme styling lives in the global design system and UI controls use the existing design components.
 
 - Screenshot uploads are attachment-only browser flows; no image-extraction server functions are exposed, avoiding unused AI processing.
+- Single-choice form button groups use the shared picker so selection behavior and styling stay consistent across trade and backtest forms.
