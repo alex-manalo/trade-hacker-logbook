@@ -32,6 +32,10 @@ describe('Attachment-only screenshot uploads', () => {
     await waitFor(() => expect(getByAltText('Trade screenshot').getAttribute('src')).toMatch(/^data:image\/png/));
     expect(symbol).toHaveValue('BTC/USDT');
     expect(getByLabelText('Entry price')).toHaveValue(null);
+    const timeframeGroup = getByLabelText('Timeframe');
+    fireEvent.click(timeframeGroup.querySelectorAll('button')[1] as HTMLButtonElement);
+    expect(timeframeGroup.querySelector('button[aria-pressed="true"]')).toHaveTextContent('15min=4H');
+    expect(container.querySelector<HTMLInputElement>('input[name="timeframe"]')?.value).toBe('15min=4H');
     expect(fetch).not.toHaveBeenCalled();
   });
 
@@ -40,14 +44,19 @@ describe('Attachment-only screenshot uploads', () => {
     const { container, getByLabelText, getByAltText } = render(<Backtest userId="operator" onSignIn={() => {}} />);
     fireEvent.change(getByLabelText('Target (%)'), { target: { value: '3' } });
     fireEvent.change(getByLabelText('Stop loss (%)'), { target: { value: '1' } });
-    fireEvent.change(getByLabelText('Result'), { target: { value: 'Loss' } });
+    const resultGroup = getByLabelText('Result');
+    fireEvent.click(resultGroup.querySelector('button[aria-pressed="false"]') as HTMLButtonElement);
+    expect(resultGroup.querySelector('button[aria-pressed="true"]')).toHaveTextContent('Loss');
+    const timeframeGroup = getByLabelText('Timeframe');
+    fireEvent.click(timeframeGroup.querySelectorAll('button')[1] as HTMLButtonElement);
+    expect(timeframeGroup.querySelector('button[aria-pressed="true"]')).toHaveTextContent('15min=4H');
     const upload = container.querySelector('input[type="file"]');
     if (!upload) throw new Error('Missing screenshot input');
     fireEvent.change(upload, { target: { files: [new File(['image'], 'chart.png', { type: 'image/png' })] } });
     await waitFor(() => expect(getByAltText('Backtest screenshot preview').getAttribute('src')).toMatch(/^data:image\/png/));
     expect(getByLabelText('Target (%)')).toHaveValue(3);
     expect(getByLabelText('Stop loss (%)')).toHaveValue(1);
-    expect(getByLabelText('Result')).toHaveValue('Loss');
+    expect(resultGroup.querySelector('button[aria-pressed="true"]')).toHaveTextContent('Loss');
     expect(fetch).not.toHaveBeenCalled();
   });
 });

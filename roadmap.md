@@ -11,4 +11,4 @@
 - [x] Multiple strategies per trade and per backtest (counted fully in each).
 
 - [x] Remove image screening and auto-fill from trades and backtests; retain screenshot attachments.
-- [x] Replace Result and Timeframe form dropdowns with single-choice buttons.
+- [x] Replace Result and Timeframe form dropdowns with single-choice buttons on journal and backtest forms.
